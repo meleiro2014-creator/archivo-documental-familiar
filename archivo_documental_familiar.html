@@ -344,7 +344,7 @@ var db=null, googleTokenClient=null, driveAccessToken=null, driveTokenExpira=0, 
    subir cambios sigue viéndose la fecha antigua, hay que forzar recarga sin caché
    (Ctrl+Shift+R en Windows/Linux, Cmd+Shift+R en Mac). */
 var VERSION_APP='v1.2 — 16/08/2026';
-var CFG_ORIGEN_ID=null, CFG_DESTINO_ID='1Jb7whlTVNC2S4x3Mgrluoh3QlMjcgGIm', CFG_BASE_DATOS_ID='1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC', CFG_BACKUP_ARBOL_NOMBRE='backup-arbol.json', CFG_REVISION_ID=null, CFG_FOTO_ID=null, CFG_DOCUMENTOS_ID=null, CFG_AUTO_PERFIL=false;
+var CFG_ORIGEN_ID=null, CFG_DESTINO_ID='1PHLIt4B755m-r0XzEyAC-EU8h4bjSs_6', CFG_BASE_DATOS_ID='1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC', CFG_BACKUP_ARBOL_NOMBRE='backup-arbol.json', CFG_REVISION_ID=null, CFG_FOTO_ID=null, CFG_DOCUMENTOS_ID=null, CFG_AUTO_PERFIL=false;
 var CFG_OCR_ACTIVO=false, CFG_OCR_MAX_PAGINAS=3;
 /* ===== BLOQUE C / G: vía rápida de importación =====
    Extensiones que se consideran foto/vídeo directo (sin pasar por Dudas) y palabras
@@ -3292,7 +3292,7 @@ document.addEventListener('DOMContentLoaded',function(){
 oDB().then(async function(){
 GOOGLE_CLIENT_ID_IMPORT=await leerCfgValor('clientId','');
 CFG_ORIGEN_ID=await leerCfgValor('origenId',null);
-CFG_DESTINO_ID=await leerCfgValor('destinoId','1Jb7whlTVNC2S4x3Mgrluoh3QlMjcgGIm');
+CFG_DESTINO_ID=await leerCfgValor('destinoId','1PHLIt4B755m-r0XzEyAC-EU8h4bjSs_6');
 CFG_BASE_DATOS_ID=await leerCfgValor('baseDatosId','1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC');
 CFG_REVISION_ID=await leerCfgValor('revisionId',null);
 CFG_AUTO_PERFIL=await leerCfgValor('autoPerfil',false);
