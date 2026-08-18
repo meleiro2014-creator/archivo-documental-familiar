@@ -1490,6 +1490,37 @@ if(jsonData){
 }
 if(ocrInfo.text){existente.ocrProcesado=true;existente.ocrTexto=ocrInfo.text.slice(0,12000);existente.ocrConfianza=Number(ocrInfo.confidence||0);existente.ocrHistorial=ocrInfo.ocrHistorial||existente.ocrHistorial||[];existente.ocrSugerencias=ocrInfo.text.trim().length>=20?analizarTextoGenealogico(ocrInfo.text):{campos:[],informativas:[]}; existente.ocrHallazgos=generarHallazgosOCR(ocrInfo.text,ocrInfo.confidence);}
 if(existente.personaAsignadaId)existente.sincronizadoDrive=false;
+// CORRECCIÓN: un registro ya existente en IndexedDB no garantiza que el archivo
+// FÍSICO esté realmente en Drive (puede venir de una prueba anterior, o el driveFileId
+// puede apuntar a un archivo que ya no existe). Antes de dar por hecho que ya está
+// copiado, comprobamos y, si falta, lo copiamos ahora mismo.
+var faltaCopiaFisica=false;
+if(!existente.driveFileId){
+  faltaCopiaFisica=true;
+}else{
+  try{await obtenerArchivoDrive(existente.driveFileId);}
+  catch(eComprobar){faltaCopiaFisica=true;}
+}
+if(faltaCopiaFisica){
+  try{
+    var carpetaDestinoExistente;
+    if(existente.estado==='duda')carpetaDestinoExistente=await carpetaRevision();
+    else if(existente.estado==='perfil')carpetaDestinoExistente=await carpetaFotoPersona(personaId,personaNombre);
+    else carpetaDestinoExistente=await carpetaDocumentosPersona(personaId,personaNombre);
+    var subirBlobExistente=blob,mimeSubidaExistente=mimeDeTipo(existente.tipo||tipo),nombreSubidaExistente=existente.nombreArchivo||existente.nombreOriginal||nombreArchivo;
+    if(existente.estado==='perfil'){
+      var jpegExistente=await convertirAJPEG(blob);
+      if(jpegExistente){subirBlobExistente=jpegExistente;mimeSubidaExistente='image/jpeg';}
+      nombreSubidaExistente=personaId+'.jpg';
+    }
+    var subidaExistente=await subirBinarioADrive(nombreSubidaExistente,subirBlobExistente,mimeSubidaExistente,carpetaDestinoExistente.id,(jsonData&&jsonData.description)?String(jsonData.description):'');
+    existente.driveFileId=subidaExistente.id;
+    existente.rutaDrive=carpetaDestinoExistente.ruta;
+  }catch(eSubidaExistente){
+    console.warn('No se pudo copiar el archivo físico que faltaba en Drive para '+nombreArchivo+':',eSubidaExistente.message);
+    existente.errorCopiaFisica=eSubidaExistente.message;
+  }
+}
 await cPut('elementos',existente);
 caja.contadores.total=(caja.contadores.total||0)+1;
 await cPut('cajas',caja);
