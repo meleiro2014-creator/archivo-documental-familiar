@@ -1065,9 +1065,17 @@ return base;
 function numeroDeParte(nombre){var m=String(nombre).match(/-(\d{3})\.zip$/i);return m?parseInt(m[1],10):1;}
 async function sincronizarCajasDesdeDrive(){ return; }
 async function accionActualizar(){
-// FIX: antes esto navegaba automáticamente a la pantalla de Configuración (sv('cfg')),
-// así que al conectar con Drive el usuario "saltaba" fuera del Panel sin haberlo pedido.
-// Ahora nos quedamos en la pantalla donde esté el usuario; solo avisamos con el toast.
+// FIX (aviso falso "Configura primero la carpeta de origen"): CFG_ORIGEN_ID se declara
+// como null y solo se rellena con el valor guardado de forma ASÍNCRONA, al arrancar la
+// app. Esta función comprobaba CFG_ORIGEN_ID antes de esperar a que esa carga terminara,
+// así que si se pulsaba "Actualizar" pronto tras abrir la app, veía el null inicial y
+// mostraba el aviso aunque la carpeta SÍ estuviera guardada. Esperamos primero a que la
+// configuración esté cargada (igual que ya hace conectarGoogleDrive).
+await appConfigListoPromise;
+// FIX (navegación no pedida): antes esto también navegaba automáticamente a la pantalla
+// de Configuración (sv('cfg')), así que al conectar con Drive el usuario "saltaba" fuera
+// del Panel sin haberlo pedido. Ahora nos quedamos en la pantalla donde esté el usuario;
+// solo avisamos con el toast.
 if(!CFG_ORIGEN_ID){toast('Configura primero la carpeta de origen',true);return;}
 try{
 if(!tokenDriveValido())await conectarGoogleDrive();
