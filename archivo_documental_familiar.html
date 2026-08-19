@@ -124,7 +124,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <nav id="mn">
 <button class="active" data-v="panel" onclick="sv('panel')"><i class="fa-solid fa-gauge"></i> Panel</button>
 <button data-v="cajas" onclick="sv('cajas')"><i class="fa-solid fa-box-open"></i> Cajas</button>
-<button data-v="analizar" onclick="sv('analizar')"><i class="fa-solid fa-folder-tree"></i> Analizar documentos <span id="badgeDudas" class="badge warn" style="display:none">0</span></button>
+<button data-v="analizar" onclick="sv('analizar')"><i class="fa-solid fa-folder-tree"></i> Analizar documentos</button>
 <button data-v="informe" onclick="sv('informe')"><i class="fa-solid fa-file-lines"></i> Informe familiar</button>
 <button data-v="cfg" onclick="sv('cfg')"><i class="fa-solid fa-gear"></i> Configuración</button>
 </nav>
@@ -147,8 +147,9 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <li><b>Sube tu exportación de Google Fotos</b> (el ZIP o los ZIP que genera Google cuando pides tus fotos con "Google Takeout") a la carpeta de origen que te hayan indicado en Drive.</li>
 <li><b>Vuelve aquí y pulsa "Actualizar"</b> — el programa mirará esa carpeta y detectará cada ZIP como una "caja" nueva.</li>
 <li><b>Ve a la pestaña Cajas</b> y pulsa "Procesar ahora" en cada caja que esté lista — copiará cada foto y documento a la carpeta de la persona que le corresponda.</li>
-<li><b>Ve a Analizar documentos</b> y elige la persona — si alguna caja queda "Con dudas" verás ahí sus archivos pendientes de decidir; tú decides, uno a uno, si algo es una foto o un documento.</li>
-<li><b>Sincroniza el registro</b> — verás más abajo un aviso con las personas pendientes; pulsa "Sincronizar" para guardar en Drive el registro de sus fotos y documentos (los archivos ya están copiados desde el paso 5; esto solo guarda la ficha con la información).</li>
+<li><b>Ve a Analizar documentos</b> y elige la persona — el programa repasa su carpeta y registra automáticamente los archivos que ya estuvieran allí. Los PDFs y documentos quedan preparados para OCR y las fotografías no pasan por OCR.</li>
+<li><b>Ejecuta el OCR pendiente</b> — cuando quieras, lanza el OCR de los documentos. Al terminar cada documento, su ficha queda guardada con el texto y los hallazgos.</li>
+<li><b>Sincroniza al final</b> — cuando ya no quede OCR pendiente para la persona elegida, pulsa "Sincronizar registro" al final del flujo.</li>
 </ol>
 </div>
 <div class="card" id="cardPendientesSync" style="display:none;border-color:var(--accent)">
@@ -163,7 +164,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div class="metrics">
 <div class="metric"><div class="n" id="mCajasPend">-</div><div class="l">Cajas pendientes</div></div>
 <div class="metric"><div class="n" id="mCajasProc">-</div><div class="l">En proceso</div></div>
-<div class="metric warn"><div class="n" id="mDudas">-</div><div class="l">Con dudas abiertas</div></div>
+<div class="metric"><div class="n" id="mDudas">-</div><div class="l">OCR pendientes</div></div>
 <div class="metric"><div class="n" id="mEspacio">-</div><div class="l">Copiado hasta ahora</div></div>
 </div>
 <div class="card">
@@ -189,7 +190,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <!-- ===== LISTADO DE CAJAS CON DETALLE (subsistemas 1-3-9) ===== -->
 <div class="view" id="vCajas">
 <div class="hero"><h1>Cajas</h1><p>Le llamamos "caja" a cada exportación que Google Fotos genera cuando pides tus fotos (lo que Google llama "Google Takeout"): normalmente es un archivo comprimido ZIP, o varios si el álbum es grande y Google lo parte en trozos. Cada caja que llega a tu carpeta de origen en Drive aparece aquí; decides cuándo copiarla de verdad a tu Drive de destino, persona por persona.</p>
-<p style="font-size:12px;color:var(--muted)">Flujo típico de una caja: <b>Pendiente</b> (esperando a que termine de subirse) → <b>Lista para procesar</b> → pulsas <b>"Procesar ahora"</b> → el programa copia cada archivo a DOCUMENTOS/&lt;ID&gt;/ de la persona que le corresponda → <b>Procesada</b> (o "Con dudas" si algo no se pudo clasificar solo, y toca resolverlo en la pestaña Analizar documentos, eligiendo esa persona).</p></div>
+<p style="font-size:12px;color:var(--muted)">Flujo típico de una caja: <b>Pendiente</b> (esperando a que termine de subirse) → <b>Lista para procesar</b> → pulsas <b>"Procesar ahora"</b> → el programa copia cada archivo a DOCUMENTOS/&lt;ID&gt;/ de la persona que le corresponda → <b>Procesada</b>. La importación no queda bloqueada esperando decisiones.</p></div>
 <div class="card" id="cardAlbumesPendientes" style="display:none;border-color:var(--accent)">
 <h3><i class="fa-solid fa-user-plus" style="color:var(--accent)"></i> Álbumes esperando saber de quién son</h3>
 <p style="font-size:12px;color:var(--muted);margin-bottom:10px">El nombre de la carpeta del álbum no tiene por qué coincidir exactamente con el nombre en la ficha (apodos, solo el nombre de pila, erratas...). Se sugieren las fichas más parecidas para que cotejes ID, años y documentos ya existentes antes de confirmar. Se pregunta una sola vez por nombre de álbum.</p>
@@ -204,7 +205,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div class="card"><h3>1. Elegir persona</h3>
 <div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Elegir persona a analizar</span><input id="inputPersonaRepaso" placeholder="Escribe el nombre..." oninput="buscarPersonaParaRepaso(this.value)" autocomplete="off"></div></div>
 <div id="resultadoBusquedaPersonaRepaso" style="font-size:11px;margin-bottom:8px"></div>
-<button class="btn" onclick="analizarDocumentosExistentes()"><i class="fa-solid fa-folder-open"></i> Repasar carpeta de esta persona</button> <button class="btn ghost" onclick="sincronizarPersonaElegidaRepaso()"><i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar registro de esta persona</button></div>
+<button class="btn" onclick="analizarDocumentosExistentes()"><i class="fa-solid fa-folder-open"></i> Repasar carpeta de esta persona</button></div>
 <div class="card" id="resultadoAnalisisExistentes"><p style="color:var(--muted);font-size:12px">Todavía no se ha repasado ninguna carpeta.</p></div>
 <div class="card"><h3>2. Ejecutar OCR pendiente</h3>
 <p style="font-size:12px;color:var(--muted);line-height:1.6">Esto SÍ actúa sobre todas las personas a la vez: busca todo lo que en algún momento marcaste como "Es documento" y le pasa el reconocimiento de texto (OCR). En cuanto termina cada documento, su ficha se guarda al momento en Drive (ya no hace falta esperar a sincronizar para que el resultado del OCR quede a salvo). Puede tardar varios minutos si hay muchos documentos pendientes — verás una barra de progreso mientras trabaja.</p>
@@ -215,19 +216,16 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button class="btn ghost" onclick="generarBiografiaElegidaRepaso()"><i class="fa-solid fa-feather"></i> Generar biografía</button> <button class="btn ghost" onclick="generarInformeDesdeAnalisis()"><i class="fa-solid fa-file-export"></i> Generar informe de esta persona</button>
 <p style="font-size:11px;color:var(--muted);margin-top:6px">La biografía es un texto breve compuesto por plantillas a partir del árbol y de los documentos/fotos ya analizados (incluye lo que encuentra el OCR) — nunca por una IA que redacte libremente. Cada frase se puede rastrear hasta su fuente. Se guarda como &lt;ID&gt;_biografia.json en la carpeta de la persona. El informe se guarda como &lt;ID&gt;_informe.html en la misma carpeta.</p>
 <div id="resultadoInforme"><p style="color:var(--muted);font-size:12px">Todavía no hay un informe generado.</p></div>
+<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+<button class="btn" onclick="sincronizarPersonaElegidaRepaso()"><i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar registro (último paso)</button>
+<p style="font-size:11px;color:var(--muted);margin-top:6px">Este botón solo actúa cuando ya no queda OCR pendiente de esta persona.</p>
+</div>
 </div>
 </div>
 <div class="view" id="vInforme">
-<div class="hero"><h1>Informe para la familia</h1><p>El informe es siempre de <b>una persona concreta</b> (nunca de todo DOCUMENTOS/ de golpe): junta lo que hay copiado y clasificado en su carpeta — documentos con su texto OCR completo, y también las fotografías — y lo convierte en un HTML guardado junto a sus demás archivos, listo para compartir con un enlace.</p><p style="font-size:12px;color:var(--muted)">Es exactamente la misma herramienta que el botón "Generar informe de esta persona" de la pestaña Analizar documentos; está también aquí por si quieres generar el informe de alguien sin repasar antes su carpeta.</p></div>
-<div class="note" id="avisoPendientesInforme" style="display:none;border-color:var(--warn)"></div>
-<div class="card"><h3>Elegir persona</h3>
-<div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Persona</span><input id="inputPersonaInforme" placeholder="Escribe el nombre..." oninput="buscarPersonaParaInforme(this.value)" autocomplete="off"></div></div>
-<div id="resultadoBusquedaPersonaInforme" style="font-size:11px;margin-bottom:8px"></div>
-<button class="btn" onclick="generarInformeDePersonaElegida()"><i class="fa-solid fa-file-export"></i> Generar informe de esta persona</button>
-</div>
-<div class="card" id="resultadoInformeIndividual"><p style="color:var(--muted);font-size:12px">Todavía no hay un informe generado desde aquí.</p></div>
+<div class="hero"><h1>Informe para la familia</h1><p>Aquí queda únicamente el <b>Catálogo general</b>. Los informes individuales se generan desde "Analizar documentos", donde ya está seleccionada la persona y se sigue el flujo completo.</p></div>
 <div class="card"><h3><i class="fa-solid fa-table-list"></i> Catálogo general (para exportar)</h3>
-<p style="font-size:12px;color:var(--muted);margin-bottom:8px">A diferencia del informe (que es de una sola persona), esto SÍ recorre todas las carpetas de DOCUMENTOS/: una lista plana, una fila por archivo (persona, nombre de archivo, fecha y su contenido: el texto OCR si es un documento, o la descripción y etiquetas si es una foto). Pensada para pasarla a un catálogo general o a otra herramienta más adelante — no es un informe para leer, es un listado de datos. Se descarga a tu ordenador en formato .csv (se abre con Excel, Google Sheets o LibreOffice), no se guarda en Drive.</p>
+<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Recorre todas las carpetas de DOCUMENTOS/: una fila por archivo con persona, nombre, fecha y contenido — OCR para documentos o descripción/etiquetas para fotografías. Se descarga en formato .csv y no se guarda en Drive.</p>
 <button class="btn ghost" onclick="descargarCatalogoGeneral()"><i class="fa-solid fa-download"></i> Descargar catálogo general (.csv)</button></div>
 <div class="card" id="resultadoCatalogo"><p style="color:var(--muted);font-size:12px">Todavía no se ha descargado ningún catálogo.</p></div>
 </div>
@@ -253,11 +251,8 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <h3>Clasificación</h3><p style="font-size:12px;color:var(--muted)">La aplicación no modifica el árbol ni crea sugerencias. La clasificación solo organiza el archivo documental.</p>
 </div>
 <div class="card">
-<h3>Clasificación: foto o documento (BLOQUE A/C)</h3>
-<p style="font-size:12px;color:var(--muted)">La aplicación nunca decide sola si algo es documento: solo archiva directamente, sin pedir nada, lo que sin ninguna duda es una foto o vídeo familiar. Todo lo demás (PDFs, nombres sospechosos, archivos sin fecha) se manda a "Sin clasificar" en Drive y aparece como pendiente en la pestaña Analizar documentos, para que decidas tú.</p>
-<div class="ef-row"><div class="ef-field"><span class="ef-label">Extensiones que se consideran foto/vídeo directo</span><input id="cfgExtFotoDirecta" placeholder=".jpg, .jpeg, .png, .heic, .mp4..."></div><button class="btn ghost small" onclick="guardarExtFotoDirecta()">Guardar</button></div>
-<div class="ef-row"><div class="ef-field"><span class="ef-label">Palabras que, si aparecen en el nombre del archivo, lo dejan pendiente de decidir aunque parezca foto</span><input id="cfgPalabrasDudas" placeholder="scan, acta, certificado, factura..."></div><button class="btn ghost small" onclick="guardarPalabrasDudas()">Guardar</button></div>
-<p style="font-size:11px;color:var(--muted);margin:-4px 0 0">Ejemplo: "IMG_2034.jpg" se archiva directo como foto. "acta_bautismo.jpg" queda pendiente de decidir aunque sea un .jpg, porque el nombre contiene "acta".</p>
+<h3>Clasificación: foto o documento</h3>
+<p style="font-size:12px;color:var(--muted)">La importación nunca se bloquea por una duda de clasificación. <b>Imágenes y vídeos se archivan directamente como fotografías</b>; <b>PDF y otros formatos se archivan como documentos</b>. Si después una fotografía resulta ser un documento, puedes reclasificarla desde "Analizar documentos".</p>
 </div>
 <div class="card">
 <h3>OCR y extracción documental</h3>
@@ -303,7 +298,10 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
      Drive); solo se guarda una miniatura para la bandeja de dudas.
    ===================================================================== */
 
-var GOOGLE_CLIENT_ID_IMPORT=''; // se rellena desde Configuración (o precarga aquí si prefieres)
+var GOOGLE_CLIENT_ID_IMPORT='281185555255-guasmuc8muuumetlqsbl2elma3vqpbc6.apps.googleusercontent.com';
+var GOOGLE_CLIENT_ID_POR_DEFECTO=GOOGLE_CLIENT_ID_IMPORT;
+var appConfigListoResolve=null;
+var appConfigListoPromise=new Promise(function(resolve){appConfigListoResolve=resolve;});
 var DRIVE_SCOPE_IMPORT='https://www.googleapis.com/auth/drive email profile';
 var ESTABILIDAD_MIN=1; // minutos sin partes nuevas para considerar una caja "completa" (antes 3, reducido a un tercio)
 var CARPETA_REVISION_NOMBRE='Sin clasificar';
@@ -315,7 +313,7 @@ var db=null, googleTokenClient=null, driveAccessToken=null, driveTokenExpira=0, 
    código, si el navegador está sirviendo la versión nueva o una vieja cacheada. Si tras
    subir cambios sigue viéndose la fecha antigua, hay que forzar recarga sin caché
    (Ctrl+Shift+R en Windows/Linux, Cmd+Shift+R en Mac). */
-var VERSION_APP='v06.1 — botón Conectar corregido (19/08/2026)';
+var VERSION_APP='v07.0 — importación automática, OCR y biografía corregidos (19/08/2026)';
 var CFG_ORIGEN_ID=null, CFG_DESTINO_ID='1PHLIt4B755m-r0XzEyAC-EU8h4bjSs_6', CFG_BASE_DATOS_ID='1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC', CFG_BACKUP_ARBOL_NOMBRE='backup-arbol.json', CFG_REVISION_ID=null, CFG_FOTO_ID=null, CFG_DOCUMENTOS_ID=null, CFG_AUTO_PERFIL=false;
 var CFG_OCR_ACTIVO=false, CFG_OCR_MAX_PAGINAS=3;
 /* ===== BLOQUE C / G: vía rápida de importación =====
@@ -400,7 +398,8 @@ function leerCfgValor(id,def){return cGet('cfg',id).then(function(r){return r?r.
    Así, sea la primera llamada o la número cien, siempre se resuelve la promesa correcta. */
 var drivePendienteResolve=null,drivePendienteReject=null;
 function tokenDriveValido(){return !!(driveAccessToken&&driveTokenExpira&&Date.now()<driveTokenExpira-30000);}
-function conectarGoogleDrive(){
+async function conectarGoogleDrive(){
+await appConfigListoPromise;
 return new Promise(function(resolve,reject){
 if(!GOOGLE_CLIENT_ID_IMPORT){reject(new Error('Falta configurar el Client ID de Google en Configuración'));return;}
 if(!window.google||!google.accounts||!google.accounts.oauth2){reject(new Error('Google Identity Services no se ha cargado (revisa tu conexión)'));return;}
@@ -852,6 +851,7 @@ async function generarBiografia(personaId,personaNombre){
 
     var padre=p._PADRE&&mapa[String(p._PADRE)];
     var madre=p._MADRE&&mapa[String(p._MADRE)];
+    hechos.push({tipo:'filiacion',padre:padre?padre._nombreCompleto:null,madre:madre?madre._nombreCompleto:null,certeza:(padre||madre)?'confirmado':'sin_dato',fuente:{origen:'arbol'}});
     if(padre)hechos.push({tipo:'padre',valor:padre._nombreCompleto,idPersona:padre.ID,certeza:'confirmado',fuente:{origen:'arbol'}});
     if(madre)hechos.push({tipo:'madre',valor:madre._nombreCompleto,idPersona:madre.ID,certeza:'confirmado',fuente:{origen:'arbol'}});
     if(padre&&madre)frases.push('Hijo/a de '+padre._nombreCompleto+' y de '+madre._nombreCompleto+'.');
@@ -899,6 +899,12 @@ async function generarBiografia(personaId,personaNombre){
       hechos.push({tipo:'pista_documento',valor:inf,certeza:'posible',fuente:{origen:'documento',id:d.id,nombre:d.nombre}});
       frases.push('Según el documento "'+d.nombre+'": '+inf+'.');
     });
+    /* El informe familiar y la biografía reutilizan exactamente el mismo extracto
+       OCR almacenado en _persona.json. No se vuelve a ejecutar otro OCR ni se usa
+       una fuente paralela. */
+    if(d.extractoTexto&&String(d.extractoTexto).trim().length>=20){
+      hechos.push({tipo:'texto_ocr',valor:d.extractoTexto,certeza:'extraido',fuente:{origen:'ocr',id:d.id,nombre:d.nombre}});
+    }
   });
 
   if(fotos.length){
@@ -1373,12 +1379,30 @@ terminar(isNaN(d.getTime())?null:d);
 });
 }
 async function generarMiniatura(blob,tipo){
+if(tipo==='pdf'){
+  try{
+    if(typeof pdfjsLib==='undefined'||!pdfjsLib.getDocument)return null;
+    if(pdfjsLib.GlobalWorkerOptions&&!pdfjsLib.GlobalWorkerOptions.workerSrc){
+      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    var pdf=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise;
+    var page=await pdf.getPage(1);
+    var base=page.getViewport({scale:1});
+    var escala=Math.min(MAX_MINIATURA_PX/base.width,MAX_MINIATURA_PX/base.height);
+    var viewport=page.getViewport({scale:Math.max(.35,escala)});
+    var canvas=document.createElement('canvas');
+    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:viewport}).promise;
+    return canvas.toDataURL('image/jpeg',0.72);
+  }catch(e){console.warn('No se pudo generar miniatura PDF:',e.message);return null;}
+}
 if(tipo!=='imagen')return null;
 return new Promise(function(res){
 var img=new Image(),url=URL.createObjectURL(blob);
 img.onload=function(){
 var w=img.width,h=img.height;
-if(w>h){h=Math.round(h*MAX_MINIATURA_PX/w);w=MAX_MINIATURA_PX;}else{w=Math.round(w*MAX_MINIATURA_PX/h);h=MAX_MINIATURA_PX;}
+if(w>h){h=Math.round(h*MAX_MINIATURA_PX/w);w=MAX_MINIATURA_PX;}
+else{w=Math.round(w*MAX_MINIATURA_PX/h);h=MAX_MINIATURA_PX;}
 var c=document.createElement('canvas');c.width=w;c.height=h;
 c.getContext('2d').drawImage(img,0,0,w,h);
 URL.revokeObjectURL(url);
@@ -1505,7 +1529,7 @@ if(jsonData){
   existente.googlePhotosTitle=jsonData.title||existente.googlePhotosTitle||'';
   existente.googlePhotosJsonOriginal=JSON.stringify(jsonData,null,2);
 }
-if(ocrInfo.text){existente.ocrProcesado=true;existente.ocrTexto=ocrInfo.text.slice(0,12000);existente.ocrConfianza=Number(ocrInfo.confidence||0);existente.ocrHistorial=ocrInfo.ocrHistorial||existente.ocrHistorial||[];existente.ocrSugerencias=ocrInfo.text.trim().length>=20?analizarTextoGenealogico(ocrInfo.text):{campos:[],informativas:[]}; existente.ocrHallazgos=generarHallazgosOCR(ocrInfo.text,ocrInfo.confidence);}
+if(ocrInfo.text){existente.ocrProcesado=true;existente.ocrTexto=ocrInfo.text.slice(0,12000);existente.ocrConfianza=Number(ocrInfo.confidence||0);existente.ocrHistorial=ocrInfo.ocrHistorial||existente.ocrHistorial||[];existente.ocrSugerencias=ocrInfo.text.trim().length>=20?analizarTextoGenealogico(ocrInfo.text, (existente.personas&&existente.personas[0])||existente.personaAsignadaNombre||''):{campos:[],informativas:[]}; existente.ocrHallazgos=generarHallazgosOCR(ocrInfo.text,ocrInfo.confidence);}
 if(existente.driveFileId){
   // El archivo físico ya está en Drive: nos limitamos a actualizar la ficha.
   if(existente.personaAsignadaId)existente.sincronizadoDrive=false;
@@ -1524,16 +1548,15 @@ else if(otrasPersonas.length)motivoDuda='varias_personas';
 
 var viaRapidaClara=!motivoDuda&&esFotoDirectaClara(nombreArchivo,tipo,jsonData);
 var clasificacion=clasificarElemento(tipo,motivoDuda,viaRapidaClara);
-// Regla de oro: el OCR solo se marca pendiente cuando el elemento es, sin duda,
-// una foto/vídeo (esDocumento:false, nunca pasa por OCR) o cuando el propio usuario
-// lo confirme como documento desde "Analizar documentos" (esDocumento queda "null"
-// mientras tanto, es decir: todavía sin decidir).
+// Regla de oro: la importación ya deja cada elemento clasificado. Las fotos/vídeos
+// quedan con esDocumento:false y los PDFs/formatos documentales con esDocumento:true.
+// El OCR se ejecuta después, nunca durante la copia del álbum.
 // Si ya existía una ficha (sin archivo en Drive) y ya tenía una clasificación decidida
 // (no "duda"), respetamos esa decisión en vez de volver a clasificar desde cero.
 var reutilizaClasificacion=!!(existente && existente.estado && existente.estado!=='duda' && existente.esDocumento!==null);
 var estadoFinal=reutilizaClasificacion?existente.estado:clasificacion.estado;
 var motivoDudaFinal=reutilizaClasificacion?(existente.motivoDuda||null):clasificacion.motivoDuda;
-var esDocumento=reutilizaClasificacion?existente.esDocumento:(clasificacion.estado==='duda'?null:false);
+var esDocumento=reutilizaClasificacion?existente.esDocumento:(clasificacion.estado==='documento');
 var elemento=existente||{
 id:hash,nombreOriginal:nombreArchivo,md5:md5||null,tipo:tipo,personas:[personaNombre],otrasPersonasEtiquetadas:otrasPersonas,etiquetas:etiquetas,
 fecha:fecha.toISOString(),fechaEstimada:fechaEstimada,fuenteFecha:fuenteFecha,albumesOrigen:[albumNombre],origenesTakeout:[nombreArchivo],cajasOrigen:[caja.id],cajaId:caja.id,
@@ -1823,7 +1846,7 @@ elemento.ocrCompletado=true;
 elemento.ocrTexto=String(info.text||'').slice(0,12000);
 elemento.ocrConfianza=Number(info.confidence||0);
 elemento.ocrHistorial=info.ocrHistorial||[];
-elemento.ocrSugerencias=elemento.ocrTexto.trim().length>=20?analizarTextoGenealogico(elemento.ocrTexto):{campos:[],informativas:[]};
+elemento.ocrSugerencias=elemento.ocrTexto.trim().length>=20?analizarTextoGenealogico(elemento.ocrTexto, (elemento.personas&&elemento.personas[0])||elemento.personaAsignadaNombre||''):{campos:[],informativas:[]};
 elemento.ocrHallazgos=generarHallazgosOCR(elemento.ocrTexto,elemento.ocrConfianza);
 elemento.ocrAnalizadoEn=new Date().toISOString();
 delete elemento.ocrError;
@@ -1852,8 +1875,30 @@ m=frag.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
 if(m){var a=parseInt(m[3],10);if(a<100)a+=(a<30?2000:1900);return{dia:parseInt(m[1],10),mes:parseInt(m[2],10),anio:a,texto:m[0]};}
 return null;
 }
-function ocrBuscarFechasConContexto(texto){
-var resultados=[],re=/(\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+\d{4}|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/gi,m;
+function ocrTokensNombrePersona(nombre){
+var n=normalizarTextoOCR(String(nombre||'')).replace(/[^a-z0-9áéíóúñü ]/g,' ');
+var stop={de:1,del:1,la:1,las:1,los:1,y:1,el:1};
+return n.split(/\\s+/).filter(function(t){return t.length>=3&&!stop[t];});
+}
+function ocrPersonaCercaDeFecha(texto,pos,nombre){
+var tokens=ocrTokensNombrePersona(nombre);
+if(!tokens.length)return{confirmada:false,distancia:999999};
+var radio=180,inicio=Math.max(0,pos-radio),fin=Math.min(String(texto||'').length,pos+radio);
+var ventana=normalizarTextoOCR(String(texto||'').slice(inicio,fin));
+var nombreCompleto=normalizarTextoOCR(String(nombre||'')).trim();
+if(nombreCompleto&&ventana.indexOf(nombreCompleto)>=0)return{confirmada:true,distancia:0,modo:'nombre_completo'};
+var hallados=tokens.filter(function(t){return ventana.indexOf(t)>=0;});
+var minimo=tokens.length>=2?2:1;
+if(hallados.length<minimo)return{confirmada:false,distancia:999999};
+var mejor=999999;
+tokens.forEach(function(t){
+var ix=ventana.indexOf(t);
+if(ix>=0)mejor=Math.min(mejor,Math.abs((inicio+ix)-pos));
+});
+return{confirmada:true,distancia:mejor,modo:'tokens'};
+}
+function ocrBuscarFechasConContexto(texto,nombrePersona){
+var resultados=[],re=/(\\d{1,2}\\s+de\\s+[a-záéíóúñ]+\\s+de\\s+\\d{4}|\\d{1,2}[\\/\\-\\.]\\d{1,2}[\\/\\-\\.]\\d{2,4})/gi,m;
 while((m=re.exec(texto))){
 var inicio=Math.max(0,m.index-60);
 var contexto=texto.slice(inicio,m.index).toLowerCase();
@@ -1863,7 +1908,8 @@ var tipo='desconocido';
 if(/naci|bautiz/i.test(contexto))tipo='nacimiento';
 else if(/falleci|defunci|muri[oó]/i.test(contexto))tipo='defuncion';
 else if(/matrimonio|cas[oó]|desposor/i.test(contexto))tipo='matrimonio';
-resultados.push({tipo:tipo,fecha:fecha});
+var vinculo=ocrPersonaCercaDeFecha(texto,m.index,nombrePersona);
+resultados.push({tipo:tipo,fecha:fecha,personaConfirmada:!nombrePersona||vinculo.confirmada,distanciaPersona:vinculo.distancia,modoVinculo:vinculo.modo||null});
 }
 return resultados;
 }
@@ -1884,11 +1930,11 @@ function ocrBuscarConyuge(texto){
 var m=texto.match(/(?:cas[oó] con|contrajo matrimonio con|esposo\/?a de)\s+([A-ZÁÉÍÓÚÑ][^\.,;]{3,50})/i);
 return m?m[1].trim():null;
 }
-function analizarTextoGenealogico(texto){
+function analizarTextoGenealogico(texto,nombrePersona){
 if(!texto||texto.length<20)return{campos:[],informativas:[]};
-var fechas=ocrBuscarFechasConContexto(texto),lugares=ocrBuscarLugares(texto);
-var fNac=fechas.filter(function(f){return f.tipo==='nacimiento';})[0];
-var fDef=fechas.filter(function(f){return f.tipo==='defuncion';})[0];
+var fechas=ocrBuscarFechasConContexto(texto,nombrePersona),lugares=ocrBuscarLugares(texto);
+var fNac=fechas.filter(function(f){return f.tipo==='nacimiento'&&f.personaConfirmada!==false;}).sort(function(a,b){return (a.distanciaPersona||999999)-(b.distanciaPersona||999999);})[0];
+var fDef=fechas.filter(function(f){return f.tipo==='defuncion'&&f.personaConfirmada!==false;}).sort(function(a,b){return (a.distanciaPersona||999999)-(b.distanciaPersona||999999);})[0];
 var lNac=lugares.filter(function(l){return l.tipo==='nacimiento';})[0];
 var lDef=lugares.filter(function(l){return l.tipo==='defuncion';})[0];
 var campos=[];
@@ -2038,15 +2084,20 @@ async function marcarNoDuplicadoOCR(elementoId){var e=await cGet('elementos',ele
    siempre el usuario (vía rápida clara al importar, o a mano en Dudas/Análisis).
    "viaRapidaClara" viene de esFotoDirectaClara() — ver BLOQUE C. */
 function clasificarElemento(tipo,motivoDudaPrevio,viaRapidaClara){
-if(motivoDudaPrevio)return{estado:'duda',motivoDuda:motivoDudaPrevio};
-if(tipo==='pdf')return{estado:'duda',motivoDuda:'confirmar_documento'};
-if(tipo==='video')return viaRapidaClara?{estado:'video',motivoDuda:null}:{estado:'duda',motivoDuda:'ambiguo_via_rapida'};
+/*
+  Desde v07 la importación nunca queda bloqueada esperando una decisión humana.
+  Regla simple y estable:
+  - imagen/vídeo -> fotografía
+  - PDF y cualquier otro tipo -> documento
+  El usuario puede reclasificar posteriormente desde Analizar documentos, pero
+  la copia física y el registro se hacen siempre.
+*/
 if(tipo==='imagen'){
- if(!viaRapidaClara)return{estado:'duda',motivoDuda:'ambiguo_via_rapida'};
- if(CFG_AUTO_PERFIL)return{estado:'perfil',motivoDuda:null};
- return{estado:'fotografia',motivoDuda:null};
+  if(CFG_AUTO_PERFIL && viaRapidaClara)return{estado:'perfil',motivoDuda:null};
+  return{estado:'fotografia',motivoDuda:null};
 }
-return{estado:'duda',motivoDuda:'tipo_no_reconocido'};
+if(tipo==='video')return{estado:'video',motivoDuda:null};
+return{estado:'documento',motivoDuda:null};
 }
 /* ===== BLOQUE C: vía rápida de importación (paso 2 de la idea) =====
    Solo se considera "sin ninguna duda, una foto/vídeo familiar" cuando la extensión
@@ -2441,7 +2492,60 @@ analizarDocumentosExistentes();
 }
 async function sincronizarPersonaElegidaRepaso(){
 if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres sincronizar',true);return;}
-await sincronizarUnaPersonaUI(REPASO_PERSONA_ACTUAL.id,REPASO_PERSONA_ACTUAL.nombre);
+var pid=String(REPASO_PERSONA_ACTUAL.id),nombre=REPASO_PERSONA_ACTUAL.nombre;
+var todos=await cAll('elementos');
+var pendientes=todos.filter(function(e){
+return e&&String(e.personaAsignadaId)===pid&&e.esDocumento===true&&e.ocrPendiente===true;
+});
+if(pendientes.length){
+toast('Primero termina el OCR de '+pendientes.length+' documento(s) de '+nombre+'.',true);
+return;
+}
+await sincronizarUnaPersonaUI(pid,nombre);
+}
+async function registrarArchivoExistenteAutomaticamente(f,pid,nombre){
+var tipo=(f.mimeType||'').indexOf('pdf')>=0?'pdf':
+         ((f.mimeType||'').indexOf('image/')===0?'imagen':
+         ((f.mimeType||'').indexOf('video/')===0?'video':'otro'));
+var esDocumento=(tipo==='pdf'||tipo==='otro');
+var hash='drive_'+f.id;
+var elemento=await cGet('elementos',hash);
+if(!elemento){
+  elemento={
+    id:hash,nombreOriginal:f.name,md5:f.md5Checksum||null,tipo:tipo,
+    personas:[nombre],otrasPersonasEtiquetadas:[],etiquetas:[],
+    fecha:f.modifiedTime||new Date().toISOString(),fechaEstimada:true,fuenteFecha:'drive',
+    albumesOrigen:['DOCUMENTOS/'+pid],origenesTakeout:[],cajasOrigen:[],cajaId:null,
+    estado:esDocumento?'documento':(tipo==='video'?'video':'fotografia'),
+    motivoDuda:null,tamano:Number(f.size||0),personaAsignadaId:String(pid),
+    miniatura:null,rutaDrive:'DOCUMENTOS/'+pid+'/'+f.name,driveFileId:f.id,
+    googlePhotosMetadata:null,googlePhotosMetadataDisponible:false,
+    googlePhotosDescription:'',googlePhotosTitle:'',googlePhotosUrl:'',googlePhotosJsonOriginal:null,
+    esDocumento:esDocumento,ocrProcesado:false,ocrPendiente:esDocumento,
+    ocrCompletado:false,ocrTexto:'',ocrConfianza:0,ocrHistorial:[],
+    ocrSugerencias:{campos:[],informativas:[]},ocrHallazgos:{}
+  };
+}else{
+  elemento.personaAsignadaId=String(pid);
+  elemento.personas=elemento.personas&&elemento.personas.length?elemento.personas:[nombre];
+  elemento.driveFileId=f.id;
+  elemento.nombreOriginal=f.name;
+  elemento.tipo=tipo;
+  elemento.estado=esDocumento?'documento':(tipo==='video'?'video':'fotografia');
+  elemento.esDocumento=esDocumento;
+  elemento.ocrPendiente=esDocumento&&!elemento.ocrProcesado;
+  elemento.rutaDrive='DOCUMENTOS/'+pid+'/'+f.name;
+  elemento.motivoDuda=null;
+}
+if(!elemento.miniatura&&(tipo==='imagen'||tipo==='pdf')){
+  try{elemento.miniatura=await obtenerMiniaturaDesdeDrive(f.id);}catch(e){}
+}
+if(elemento.ocrTexto&&elemento.ocrTexto.trim().length>=20){
+  elemento.ocrSugerencias=analizarTextoGenealogico(elemento.ocrTexto,nombre);
+  elemento.ocrHallazgos=generarHallazgosOCR(elemento.ocrTexto,elemento.ocrConfianza);
+}
+await cPut('elementos',elemento);
+return elemento;
 }
 async function analizarDocumentosExistentes(){
 var pid=REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id;
@@ -2449,7 +2553,7 @@ if(!pid){toast('Escribe el nombre y elige primero a qué persona quieres repasar
 var out=document.getElementById('resultadoAnalisisExistentes');
 try{
 var nombre=REPASO_PERSONA_ACTUAL.nombre;
-if(out)out.innerHTML='<p><b>Buscando archivos de '+esc(nombre)+'…</b></p>';
+if(out)out.innerHTML='<p><b>Repasando automáticamente la carpeta de '+esc(nombre)+'…</b></p>';
 var carpeta=await carpetaDocumentosPersona(pid,nombre);
 var archivos=await listarTodosArchivosDrive("'"+carpeta.id+"' in parents and trashed=false","id,name,mimeType,size,md5Checksum,modifiedTime,parents");
 var locales=await cAll('elementos');
@@ -2458,66 +2562,64 @@ locales.forEach(function(x){if(x&&x.driveFileId)idsLocal[String(x.driveFileId)]=
 var sinRegistrar=archivos.filter(function(f){
 return f.mimeType!=='application/vnd.google-apps.folder'
 &&f.name!==nombreArchivoDocumental(pid)&&f.name!==nombrePersonaJson(pid)
-&&f.name!=='archivo-documental.json'&&f.name!=='_persona.json' // nombres antiguos, por si queda alguno sin migrar
+&&f.name!=='archivo-documental.json'&&f.name!=='_persona.json'
 &&!/\.google-photos\.json$/i.test(f.name)
 &&!idsLocal[String(f.id)];
 });
-REPASO_PENDIENTES=sinRegistrar.map(function(f){
-var tipo=(f.mimeType||'').indexOf('pdf')>=0?'pdf':((f.mimeType||'').indexOf('image/')===0?'imagen':((f.mimeType||'').indexOf('video/')===0?'video':'otro'));
-return{driveFile:f,tipo:tipo,personaId:String(pid),personaNombre:nombre};
-});
-// Elementos de esta persona que ya están clasificados como foto (esDocumento!==true) y
-// que el usuario puede querer pasar a documento para que entren en la cola de OCR.
-REPASO_CLASIFICADOS=locales.filter(function(x){return x&&String(x.personaAsignadaId)===String(pid)&&x.estado!=='duda'&&x.estado!=='descartado'&&x.esDocumento!==true;});
-// v06: los archivos "en duda" (foto o documento sin decidir) ya no viven en una pantalla
-// aparte ("Dudas"): se repasan aquí mismo, para la persona elegida. Un elemento en duda
-// puede no tener personaAsignadaId todavía (se decide precisamente aquí), así que lo
-// localizamos por la caja a la que pertenece o por el nombre con el que se importó.
-var nombreNorm=normalizarNombreAlbum(nombre);
-var cajasDeLaPersona={};
-(await cAll('cajas')).forEach(function(c){if(c&&String(c.personaAsignadaId)===String(pid))cajasDeLaPersona[c.id]=true;});
-REPASO_DUDAS=locales.filter(function(x){
-if(!x||x.estado!=='duda')return false;
-if(x.personaAsignadaId&&String(x.personaAsignadaId)===String(pid))return true;
-if(x.cajaId&&cajasDeLaPersona[x.cajaId])return true;
-return (x.personas||[]).some(function(pn){return normalizarNombreAlbum(pn)===nombreNorm;});
+var actualizados=0;
+for(var i=0;i<sinRegistrar.length;i++){
+  if(out)out.innerHTML='<p><b>Registrando automáticamente '+(i+1)+' de '+sinRegistrar.length+'…</b><br><span style="font-size:11px;color:var(--muted)">'+esc(sinRegistrar[i].name)+'</span></p>';
+  await registrarArchivoExistenteAutomaticamente(sinRegistrar[i],String(pid),nombre);
+  actualizados++;
+}
+if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s) automáticamente. Los documentos quedan con OCR pendiente; no se ejecuta OCR durante este repaso.</p>';
+/* Recalcula las sugerencias de OCR de documentos antiguos con el nombre correcto
+   de la persona. Esto repara también registros creados por versiones anteriores. */
+var todos=await cAll('elementos');
+var reparados=0;
+for(var j=0;j<todos.length;j++){
+  var el=todos[j];
+  if(!el||String(el.personaAsignadaId)!==String(pid)||el.esDocumento!==true||!el.ocrTexto)continue;
+  el.ocrSugerencias=analizarTextoGenealogico(el.ocrTexto,nombre);
+  el.ocrHallazgos=generarHallazgosOCR(el.ocrTexto,el.ocrConfianza);
+  await cPut('elementos',el);
+  reparados++;
+}
+/* Una sola escritura del JSON de la persona: evita subir el mismo JSON creciente
+   una vez por archivo y hace el repaso mucho más rápido en carpetas grandes. */
+if(actualizados||reparados){
+  await sincronizarPersona(pid,nombre);
+}
+await actualizarResumenOCRPendiente();
+await renderPendientesSincronizar();
+REPASO_PENDIENTES=[];
+REPASO_DUDAS=[];
+REPASO_CLASIFICADOS=(await cAll('elementos')).filter(function(x){
+  return x&&String(x.personaAsignadaId)===String(pid)&&x.estado!=='descartado'&&x.esDocumento!==true;
 });
 renderRepasoCarpeta();
-toast(REPASO_DUDAS.length+' pendiente(s) de decidir, '+REPASO_PENDIENTES.length+' archivo(s) sin registrar y '+REPASO_CLASIFICADOS.length+' ya clasificado(s) como foto de '+nombre);
-}catch(err){var msgH=mensajeErrorHumano(err.message);if(out)out.innerHTML='<p style="color:var(--warn);font-size:12px">No se pudo repasar la carpeta. '+esc(msgH)+'</p>';toast('No se pudo repasar la carpeta. '+msgH,true);}
+toast('Repaso terminado: '+actualizados+' archivo(s) registrado(s) automáticamente. '+reparados+' OCR antiguo(s) revisado(s).');
+}catch(err){
+var msgH=mensajeErrorHumano(err.message);
+if(out)out.innerHTML='<p style="color:var(--warn);font-size:12px">No se pudo repasar la carpeta. '+esc(msgH)+'</p>';
+toast('No se pudo repasar la carpeta. '+msgH,true);
 }
+}
+
 function renderRepasoCarpeta(){
 var out=document.getElementById('resultadoAnalisisExistentes');
 if(!out)return;
-if(!REPASO_DUDAS.length&&!REPASO_PENDIENTES.length&&!REPASO_CLASIFICADOS.length){out.innerHTML='<p style="color:var(--muted);font-size:12px">No hay nada que repasar en esta carpeta. Está al día.</p>';return;}
-var html='<p style="font-size:12px;color:var(--muted);margin-bottom:8px"><b>La decisión foto/documento es siempre del usuario.</b> Nada se registra automáticamente.</p>';
-if(REPASO_DUDAS.length){
-html+='<h4 style="margin:10px 0 6px">Pendientes de decidir: foto o documento ('+REPASO_DUDAS.length+')</h4><p style="font-size:11px;color:var(--muted);margin:0 0 8px">El programa no ha sabido clasificarlos solo al importarlos (varias personas en la foto, o sin datos de Google Fotos). Decide uno a uno.</p><div class="duda-grid">'+
-REPASO_DUDAS.map(function(e,idx){
-var motivoTxt={varias_personas:'Varias personas',ambiguo_via_rapida:'No es, sin ninguna duda, una foto clara',confirmar_documento:'Confirmar si es documento (PDF)',huerfano:'Sin datos de Google Fotos asociados',error_al_mover:'⚠️ No se pudo guardar en Drive — reinténtalo'}[e.motivoDuda]||e.motivoDuda||'';
-return '<div class="duda-card">'+(e.miniatura?'<img class="duda-thumb" src="'+e.miniatura+'">':'<div class="duda-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid '+(e.tipo==='pdf'?'fa-file-pdf':e.tipo==='video'?'fa-file-video':'fa-file')+'" style="font-size:26px"></i></div>')+
-'<div class="duda-meta"><b>'+esc(e.nombreOriginal)+'</b><br>'+esc(motivoTxt)+
-(e.errorUbicacion?'<br><span style="color:var(--warn)">'+esc(e.errorUbicacion)+'</span>':'')+'</div>'+
-'<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost small" onclick="resolverDudaAnalisis('+idx+',false)"><i class="fa-solid fa-image"></i> Es foto</button><button class="btn small" onclick="resolverDudaAnalisis('+idx+',true)"><i class="fa-solid fa-file"></i> Es documento</button><button class="btn ghost small" onclick="descartarDudaAnalisis('+idx+')"><i class="fa-solid fa-trash"></i> Descartar</button></div></div>';
-}).join('')+'</div>';
+if(!REPASO_CLASIFICADOS.length){
+  out.innerHTML='<p style="color:var(--muted);font-size:12px">La carpeta está al día. Los archivos existentes ya están registrados; los documentos pendientes quedan en la cola de OCR.</p>';
+  return;
 }
-if(REPASO_PENDIENTES.length){
-html+='<h4 style="margin:10px 0 6px">Sin registrar todavía en este navegador ('+REPASO_PENDIENTES.length+')</h4><p style="font-size:11px;color:var(--muted);margin:0 0 8px">Estos archivos ya están en Google Drive, pero <b>este navegador no tiene su ficha guardada localmente</b> — suele pasar si se procesaron desde otro dispositivo o navegador, o si se limpió la caché de este programa. No es un error: solo hace falta decirle a esta pestaña qué es cada uno, una vez.</p><div class="duda-grid">'+
-REPASO_PENDIENTES.map(function(item,idx){
-var f=item.driveFile;
-return '<div class="duda-card"><div class="duda-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid '+(item.tipo==='pdf'?'fa-file-pdf':item.tipo==='video'?'fa-file-video':item.tipo==='imagen'?'fa-image':'fa-file')+'" style="font-size:26px"></i></div>'+
-'<div class="duda-meta"><b>'+esc(f.name)+'</b><br>'+fmtBytes(Number(f.size||0))+'</div>'+
-'<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost small" onclick="decidirRepasoCarpeta('+idx+',false)"><i class="fa-solid fa-image"></i> Es foto</button><button class="btn small" onclick="decidirRepasoCarpeta('+idx+',true)"><i class="fa-solid fa-file"></i> Es documento</button></div></div>';
-}).join('')+'</div>';
-}
-if(REPASO_CLASIFICADOS.length){
-html+='<h4 style="margin:14px 0 6px">Ya clasificados como foto — márcalo aquí si en realidad es un documento ('+REPASO_CLASIFICADOS.length+')</h4><div class="duda-grid">'+
-REPASO_CLASIFICADOS.map(function(el,idx){
+var html='<p style="font-size:12px;color:var(--muted);margin-bottom:8px"><b>Los archivos ya no se bloquean esperando una decisión.</b> Las fotos se archivan como fotografía y los PDFs/archivos no fotográficos como documento. Si una fotografía resulta ser un documento, puedes reclasificarla aquí.</p>';
+html+='<h4 style="margin:14px 0 6px">Ya clasificados como foto — si alguno es realmente un documento ('+REPASO_CLASIFICADOS.length+')</h4><div class="duda-grid">';
+html+=REPASO_CLASIFICADOS.map(function(el,idx){
 return '<div class="duda-card">'+(el.miniatura?'<img class="duda-thumb" src="'+el.miniatura+'">':'<div class="duda-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-image" style="font-size:26px"></i></div>')+
 '<div class="duda-meta"><b>'+esc(el.nombreOriginal)+'</b><br>Clasificado como foto</div>'+
-'<div style="margin-top:7px"><button class="btn small" onclick="reclasificarComoDocumento('+idx+')"><i class="fa-solid fa-file"></i> En realidad es documento (OCR pendiente)</button></div></div>';
+'<div style="margin-top:7px"><button class="btn small" onclick="reclasificarComoDocumento('+idx+')"><i class="fa-solid fa-file"></i> En realidad es documento</button></div></div>';
 }).join('')+'</div>';
-}
 out.innerHTML=html;
 }
 /* Guarda al momento en Drive (archivo-documental.json + _persona.json de la persona) la
@@ -2643,9 +2745,7 @@ toast('No se pudo mover '+el.nombreOriginal+' en Drive. '+mensajeErrorHumano(err
 async function actualizarBadgeDudas(){
 try{
 var todos=await cAll('elementos');
-var n=todos.filter(function(e){return e.estado==='duda';}).length;
-var b=document.getElementById('badgeDudas');
-if(b){b.style.display=n?'inline-block':'none';b.textContent=n;}
+var n=todos.filter(function(e){return e&&e.esDocumento===true&&e.ocrPendiente===true;}).length;
 var m=document.getElementById('mDudas');
 if(m)m.textContent=n;
 }catch(e){}
@@ -3289,6 +3389,9 @@ CFG_OCR_ACTIVO=await leerCfgValor('ocrActivo',true);
 CFG_OCR_MAX_PAGINAS=await leerCfgValor('ocrMaxPaginas',3);
 CFG_EXT_FOTO_DIRECTA=await leerCfgValor('extFotoDirecta',CFG_EXT_FOTO_DIRECTA);
 CFG_PALABRAS_DUDAS=await leerCfgValor('palabrasDudas',CFG_PALABRAS_DUDAS);
+/* La configuración queda disponible antes de permitir OAuth. */
+if(!GOOGLE_CLIENT_ID_IMPORT)GOOGLE_CLIENT_ID_IMPORT=GOOGLE_CLIENT_ID_POR_DEFECTO;
+if(appConfigListoResolve){appConfigListoResolve();appConfigListoResolve=null;}
 await cargarMapaAliasAlbum();
 await cargarPendientesPersistentes();
 await migrarEsDocumentoLegacy();
