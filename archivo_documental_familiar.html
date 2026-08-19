@@ -207,15 +207,16 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div id="resultadoBusquedaPersonaRepaso" style="font-size:11px;margin-bottom:8px"></div>
 <button class="btn" onclick="analizarDocumentosExistentes()"><i class="fa-solid fa-folder-open"></i> Repasar carpeta de esta persona</button></div>
 <div class="card" id="resultadoAnalisisExistentes"><p style="color:var(--muted);font-size:12px">Todavía no se ha repasado ninguna carpeta.</p></div>
+<div class="card">
+<p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px">Después de repasar la carpeta (arriba), pulsa esto para grabar de verdad en Drive el <code>&lt;ID&gt;_archivo-documental.json</code> y <code>&lt;ID&gt;_persona.json</code> de esta persona, con los metadatos de todo lo registrado — incluido lo recién detectado en "Registrando automáticamente" — aunque todavía no tenga OCR. Te dice si se ha grabado o no.</p>
+<button class="btn" onclick="guardarJsonPersonaActualRepaso()"><i class="fa-solid fa-floppy-disk"></i> Guardar JSON de esta persona ahora</button>
+<div id="resultadoGuardarJsonPersonaActual" style="margin-top:10px"></div>
+</div>
 <div class="card"><h3>2. Ejecutar OCR pendiente</h3>
 <p style="font-size:12px;color:var(--muted);line-height:1.6">Esto SÍ actúa sobre todas las personas a la vez: busca todo lo que en algún momento marcaste como "Es documento" y le pasa el reconocimiento de texto (OCR). En cuanto termina cada documento, su ficha se guarda al momento en Drive (ya no hace falta esperar a sincronizar para que el resultado del OCR quede a salvo). Puede tardar varios minutos si hay muchos documentos pendientes — verás una barra de progreso mientras trabaja.</p>
 <button class="btn ghost" onclick="analizarOCRPendiente()"><i class="fa-solid fa-file-lines"></i> Ejecutar OCR pendiente</button>
 <div id="ocrPendienteResumen" style="margin-top:10px;font-size:12px;color:var(--muted)"></div></div>
-<div class="card"><h3>3. Guardar JSON manualmente (todas las personas)</h3>
-<p style="font-size:12px;color:var(--muted);line-height:1.6">Este botón no depende de si queda OCR pendiente ni de ningún otro requisito: repasa TODO lo que ya tienes asignado a una persona (documentos y fotografías, tengan o no OCR terminado) y vuelve a grabar su &lt;ID&gt;_archivo-documental.json y &lt;ID&gt;_persona.json en Drive, persona por persona. Úsalo si sospechas que el JSON de algo no se ha guardado (por ejemplo, un PDF cuyo OCR falló o se quedó a medias). Al terminar te dice, persona por persona, si se ha grabado o no.</p>
-<button class="btn" onclick="guardarJsonDocumentosPendientesManual()"><i class="fa-solid fa-floppy-disk"></i> Guardar JSON de todos los documentos y fotos</button>
-<div id="resultadoGuardarJsonManual" style="margin-top:10px"></div></div>
-<div class="card"><h3>4. Biografía e informe de esta persona</h3>
+<div class="card"><h3>3. Biografía e informe de esta persona</h3>
 <p style="font-size:12px;color:var(--muted);line-height:1.6">Ambos se generan solo para la persona elegida arriba, con lo que ya está analizado de su carpeta (documentos con su texto OCR y fotografías).</p>
 <button class="btn ghost" onclick="generarBiografiaElegidaRepaso()"><i class="fa-solid fa-feather"></i> Generar biografía</button> <button class="btn ghost" onclick="generarInformeDesdeAnalisis()"><i class="fa-solid fa-file-export"></i> Generar informe de esta persona</button>
 <p style="font-size:11px;color:var(--muted);margin-top:6px">La biografía es un texto breve compuesto por plantillas a partir del árbol y de los documentos/fotos ya analizados (incluye lo que encuentra el OCR) — nunca por una IA que redacte libremente. Cada frase se puede rastrear hasta su fuente. Se guarda como &lt;ID&gt;_biografia.json en la carpeta de la persona. El informe se guarda como &lt;ID&gt;_informe.html en la misma carpeta.</p>
@@ -433,7 +434,13 @@ try{googleTokenClient.requestAccessToken({prompt:driveAccessToken?'':'consent'})
 });
 }
 function accionConectar(){
-conectarGoogleDrive().then(function(){toast('Conectado a Google Drive');actualizarDriveStatusPill();accionActualizar();}).catch(function(err){toast('No se pudo conectar: '+err.message,true);});
+// FIX: antes, al conectar, se lanzaba automáticamente accionActualizar() (que comprueba
+// cajas/Takeout nuevas y por eso exige la carpeta de origen configurada). Eso hacía que
+// CONECTAR A DRIVE, una acción que no tiene nada que ver con las cajas, mostrara el aviso
+// "Configura primero la carpeta de origen" en tareas que no lo necesitaban (por ejemplo,
+// repasar la carpeta de una persona). Ahora conectar SOLO conecta; comprobar cajas nuevas
+// sigue disponible aparte, con el botón "Actualizar".
+conectarGoogleDrive().then(function(){toast('Conectado a Google Drive');actualizarDriveStatusPill();}).catch(function(err){toast('No se pudo conectar: '+err.message,true);});
 }
 function actualizarDriveStatusPill(){
 var conectado=tokenDriveValido();
@@ -719,60 +726,49 @@ async function sincronizarPersona(personaId,personaNombre){
   for(var i=0;i<deEsta.length;i++){deEsta[i].sincronizadoDrive=true;await cPut('elementos',deEsta[i]);}
   return{sincronizados:deEsta.length};
 }
-/* Guardado MANUAL y sin condiciones, persona por persona. A diferencia de
-   sincronizarPersonaElegidaRepaso() (que se niega a hacer nada si a esa persona le queda
-   aunque sea un documento con OCR pendiente) y del guardado automático tras el OCR (que
-   solo salta si el elemento ya tenía personaAsignadaId en ese instante exacto), este botón
-   no comprueba nada de eso: coge TODO lo que ya está asignado a alguien —documentos y
-   fotografías, con o sin OCR terminado— y reescribe su archivo-documental.json y
-   _persona.json en Drive, persona por persona, informando del resultado real de cada una. */
-async function guardarJsonDocumentosPendientesManual(){
-  var out=document.getElementById('resultadoGuardarJsonManual');
-  if(out)out.innerHTML='<p><span class="spinner"></span> Repasando documentos y fotografías guardados…</p>';
+/* Guardado MANUAL y sin condiciones, para la persona elegida en "1. Elegir persona".
+   A diferencia de sincronizarPersonaElegidaRepaso() (que se niega a hacer nada si a esa
+   persona le queda aunque sea un documento con OCR pendiente) y del guardado automático
+   tras el OCR (que solo salta si el elemento ya tenía personaAsignadaId en ese instante
+   exacto), este botón no comprueba nada de eso: coge TODO lo que ya está registrado de
+   esta persona —documentos y fotografías, con o sin OCR terminado, incluido lo que
+   "Repasar carpeta" acaba de registrar automáticamente— y reescribe su
+   <ID>_archivo-documental.json y <ID>_persona.json en Drive. Lista cada archivo por su
+   nombre real (p. ej. esquela.pdf) para que quede claro qué se ha grabado. */
+async function guardarJsonPersonaActualRepaso(){
+  var out=document.getElementById('resultadoGuardarJsonPersonaActual');
+  if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){
+    toast('Elige primero a qué persona quieres guardar el JSON',true);
+    return;
+  }
+  var pid=String(REPASO_PERSONA_ACTUAL.id),nombre=REPASO_PERSONA_ACTUAL.nombre;
+  if(out)out.innerHTML='<p><span class="spinner"></span> Grabando el JSON de '+esc(nombre)+'…</p>';
   try{
     var todos=await cAll('elementos');
-    var asignados=todos.filter(function(e){return e && e.personaAsignadaId && e.estado!=='descartado';});
-    if(!asignados.length){
-      if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">No hay ningún documento ni fotografía asignado a una persona todavía.</p>';
+    var deEsta=todos.filter(function(e){return e && String(e.personaAsignadaId)===pid && e.estado!=='descartado';});
+    if(!deEsta.length){
+      if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">'+esc(nombre)+' todavía no tiene ningún documento ni fotografía registrado. Pulsa antes "Repasar carpeta de esta persona".</p>';
       return;
     }
-    var porPersona={};
-    asignados.forEach(function(e){
-      var pid=String(e.personaAsignadaId);
-      if(!porPersona[pid])porPersona[pid]={nombre:(e.personas&&e.personas[0])||e.personaAsignadaNombre||('Persona '+pid),total:0,documentos:0,fotos:0};
-      porPersona[pid].total++;
-      if(e.esDocumento===true)porPersona[pid].documentos++; else porPersona[pid].fotos++;
-    });
-    var ids=Object.keys(porPersona);
-    var resultados=[];
-    for(var i=0;i<ids.length;i++){
-      var pid=ids[i],info=porPersona[pid];
-      if(out)out.innerHTML='<p><span class="spinner"></span> Grabando JSON de '+esc(info.nombre)+'… ('+(i+1)+' de '+ids.length+')</p>';
-      try{
-        var r=await sincronizarPersona(pid,info.nombre);
-        resultados.push({ok:true,nombre:info.nombre,pid:pid,documentos:info.documentos,fotos:info.fotos,sincronizados:r.sincronizados});
-      }catch(err){
-        resultados.push({ok:false,nombre:info.nombre,pid:pid,documentos:info.documentos,fotos:info.fotos,error:mensajeErrorHumano(err.message)});
-      }
-    }
+    var r=await sincronizarPersona(pid,nombre);
     await renderPendientesSincronizar();
-    var okCount=resultados.filter(function(r){return r.ok;}).length;
-    var errCount=resultados.length-okCount;
-    var html='<p style="font-size:12px"><b>'+okCount+' persona(s) grabada(s) correctamente'+(errCount?', '+errCount+' con error':'')+' de '+resultados.length+' en total.</b></p>';
-    html+='<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">';
-    resultados.forEach(function(r){
-      html+='<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:11.5px">'
-      +'<b>'+(r.ok?'✓ ':'✗ ')+esc(r.nombre)+'</b> (ID '+esc(r.pid)+') — '+r.documentos+' documento(s), '+r.fotos+' foto(s)'
-      +(r.ok?' — grabado en <code>'+esc(r.pid)+'_archivo-documental.json</code> y <code>'+esc(r.pid)+'_persona.json</code>.'
-            :' — <span style="color:var(--warn)">'+esc(r.error)+'</span>')
-      +'</div>';
-    });
-    html+='</div>';
+    var docs=deEsta.filter(function(e){return e.esDocumento===true;});
+    var fotos=deEsta.filter(function(e){return e.esDocumento!==true;});
+    var html='<p style="font-size:12px"><b>✓ Grabado en Drive:</b> <code>'+esc(pid)+'_archivo-documental.json</code> y <code>'+esc(pid)+'_persona.json</code> ('+r.sincronizados+' elemento(s) de '+esc(nombre)+').</p>';
+    if(docs.length){
+      html+='<p style="font-size:11.5px;color:var(--muted);margin-top:8px"><b>Documentos incluidos ('+docs.length+'):</b></p><ul style="margin:4px 0 0;padding-left:18px;font-size:11.5px">';
+      html+=docs.map(function(d){return '<li>'+esc(d.nombreOriginal||d.id)+(d.ocrProcesado?' — con OCR':' — <span style="color:var(--accent)">OCR pendiente, metadatos ya grabados</span>')+'</li>';}).join('');
+      html+='</ul>';
+    }
+    if(fotos.length){
+      html+='<p style="font-size:11.5px;color:var(--muted);margin-top:8px">+ '+fotos.length+' fotografía(s) incluida(s).</p>';
+    }
     if(out)out.innerHTML=html;
-    toast(okCount+' persona(s) grabada(s)'+(errCount?', '+errCount+' con error':'')+'.');
-  }catch(e){
-    if(out)out.innerHTML='<p style="color:var(--warn)">No se pudo completar la operación: '+esc(mensajeErrorHumano(e.message))+'</p>';
-    toast('No se pudo completar: '+mensajeErrorHumano(e.message),true);
+    toast('✓ JSON de '+nombre+' grabado en Drive ('+r.sincronizados+' elemento(s)).');
+  }catch(err){
+    var msgH=mensajeErrorHumano(err.message);
+    if(out)out.innerHTML='<p style="color:var(--warn);font-size:12px"><b>✗ No se ha grabado.</b> '+esc(msgH)+'</p>';
+    toast('✗ No se pudo grabar el JSON de '+nombre+'. '+msgH,true);
   }
 }
 async function obtenerPersonasPendientesSincronizar(){
