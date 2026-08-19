@@ -1065,7 +1065,10 @@ return base;
 function numeroDeParte(nombre){var m=String(nombre).match(/-(\d{3})\.zip$/i);return m?parseInt(m[1],10):1;}
 async function sincronizarCajasDesdeDrive(){ return; }
 async function accionActualizar(){
-if(!CFG_ORIGEN_ID){toast('Configura primero la carpeta de origen',true);sv('cfg');return;}
+// FIX: antes esto navegaba automáticamente a la pantalla de Configuración (sv('cfg')),
+// así que al conectar con Drive el usuario "saltaba" fuera del Panel sin haberlo pedido.
+// Ahora nos quedamos en la pantalla donde esté el usuario; solo avisamos con el toast.
+if(!CFG_ORIGEN_ID){toast('Configura primero la carpeta de origen',true);return;}
 try{
 if(!tokenDriveValido())await conectarGoogleDrive();
 
@@ -1686,6 +1689,16 @@ if(jsonData){
   }
 }
 
+// BLOQUE "Sincronizar registros": ya NO se sube archivo-documental.json/_persona.json
+// aquí, foto a foto (eso es lo que hacía que un álbum grande se fuera frenando cada vez
+// más, subiendo un archivo cada vez más grande en cada foto). El archivo físico ya está
+// copiado y a salvo en Drive; el REGISTRO se sincroniza aparte, de una sola vez por
+// persona, cuando tú pulsas "Sincronizar" (ver sincronizarPersona más abajo).
+// FIX: el flag se asigna ANTES de guardar en IndexedDB, para que el elemento quede
+// realmente marcado como pendiente de sincronizar (antes se asignaba en memoria
+// después del cPut y se perdía, así que nunca se generaba el JSON en Drive).
+if(elemento.personaAsignadaId)elemento.sincronizadoDrive=false;
+
 await cPut('elementos',elemento);
 caja.contadores.total=(caja.contadores.total||0)+1;
 if(elemento.estado==='duda')caja.contadores.dudas=(caja.contadores.dudas||0)+1;
@@ -1694,12 +1707,6 @@ if(viaRapidaClara&&elemento.estado!=='duda')caja.contadores.fotosDirectas=(caja.
 else if(elemento.estado==='duda')caja.contadores.aDudas=(caja.contadores.aDudas||0)+1;
 await cPut('cajas',caja);
 await actualizarEstimacionEspacio(subirBlob.size);
-// BLOQUE "Sincronizar registros": ya NO se sube archivo-documental.json/_persona.json
-// aquí, foto a foto (eso es lo que hacía que un álbum grande se fuera frenando cada vez
-// más, subiendo un archivo cada vez más grande en cada foto). El archivo físico ya está
-// copiado y a salvo en Drive; el REGISTRO se sincroniza aparte, de una sola vez por
-// persona, cuando tú pulsas "Sincronizar" (ver sincronizarPersona más abajo).
-if(elemento.personaAsignadaId)elemento.sincronizadoDrive=false;
 
 // El OCR ya se ha ejecutado antes de decidir la carpeta. Aquí solo completamos la comparación OCR.
 if(elemento.ocrProcesado&&elemento.ocrTexto&&elemento.ocrTexto.trim().length>=20){
@@ -3405,18 +3412,10 @@ async function generarInformePersona(personaId,personaNombre,outputElId){
     arrDocs=arrDocs.slice().sort(function(a,c){return String(a.nombre||'').localeCompare(String(c.nombre||''));});
     arrFotos=arrFotos.slice().sort(function(a,c){return String(a.fecha||'').localeCompare(String(c.fecha||''));});
 
-    /* Miniaturas reales incrustadas: el informe es un HTML autocontenido que se abre
-       fuera de la sesión de Drive del programa, así que las imágenes no pueden cargarse
-       "en vivo" — se incrustan como base64 en el momento de generar el informe (mismo
-       método que usa la ficha en pantalla, obtenerMiniaturaDesdeDrive). Solo se hace
-       para fotografías (no vídeos ni documentos); si una miniatura falla, esa foto
-       simplemente se queda sin imagen y se ve igual, sin romper el informe. */
-    var fotosImagen=arrFotos.filter(function(e){return e.tipo==='imagen'&&e.driveFileId;});
-    for(var mi=0;mi<fotosImagen.length;mi++){
-      if(out)out.innerHTML='<p><b>Preparando el informe de '+esc(personaNombre)+'…</b><br><span style="font-size:11px;color:var(--muted)">Incrustando miniatura '+(mi+1)+' de '+fotosImagen.length+'</span></p>';
-      try{fotosImagen[mi]._miniatura=await obtenerMiniaturaDesdeDrive(fotosImagen[mi].driveFileId);}catch(e){fotosImagen[mi]._miniatura=null;}
-    }
-
+    // FIX: se ha quitado la incrustación de miniaturas en base64 (obtenerMiniaturaDesdeDrive).
+    // El informe resultante quedaba roto/en blanco ("no se ve nada"), así que volvemos al
+    // formato anterior: cada fotografía se referencia con su enlace a Drive, sin incrustar
+    // la imagen dentro del HTML.
     if(out)out.innerHTML='<p><b>Montando el informe de '+esc(personaNombre)+'…</b></p>';
     var totalArchivos=arrDocs.length+arrFotos.length;
     var fechasFotos=arrFotos.map(function(f){return f.fecha;}).filter(Boolean).sort();
@@ -3503,7 +3502,7 @@ async function generarInformePersona(personaId,personaNombre,outputElId){
         var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
         var fechaTxt=e.fecha?esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (est.)':(e.fuenteFecha==='exif'?' (EXIF)':'')):'';
         html+='<div class="foto-card">'
-        +(e._miniatura?'<img class="ph" src="'+e._miniatura+'" loading="lazy">':'<div class="ph-empty"><i class="fa-solid fa-'+(e.tipo==='video'?'video':'image')+'"></i></div>')
+        +'<div class="ph-empty"><i class="fa-solid fa-'+(e.tipo==='video'?'video':'image')+'"></i></div>'
         +'<div class="foto-info"><b>'+esc(e.nombre||'')+'</b>'
         +'<div class="fmeta">'+(fechaTxt?fechaTxt+'<br>':'')
         +(e.descripcionGoogleFotos?esc(e.descripcionGoogleFotos)+'<br>':'')
