@@ -363,7 +363,7 @@ function ocultarProgresoGlobal(){
 function toast(m,e){var c=document.getElementById('toastC'),t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;c.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},4000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtBytes(n){if(!n)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function sv(v){['panel','cajas','analizar','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='informe')renderInformeVista();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();}}
+function sv(v){['panel','cajas','analizar','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='informe')renderInformeVista();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
 
 /* ===== BASE DE DATOS LOCAL (propia, independiente de la de la app de árbol) ===== */
 function oDB(){return new Promise(function(res,rej){var r=indexedDB.open('ArchivoDocumentalFamiliar_v1',1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('cajas'))d.createObjectStore('cajas',{keyPath:'id'});if(!d.objectStoreNames.contains('elementos'))d.createObjectStore('elementos',{keyPath:'id'});if(!d.objectStoreNames.contains('cfg'))d.createObjectStore('cfg',{keyPath:'id'});if(!d.objectStoreNames.contains('pendientes'))d.createObjectStore('pendientes',{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res(db);};r.onerror=function(){rej(r.error);};});}
@@ -914,6 +914,43 @@ async function generarBiografia(personaId,personaNombre){
       hechos.push({tipo:'periodo_documentado',valor:desde+'–'+hasta,cantidad:fotos.length,certeza:'confirmado',fuente:{origen:'fotografias'}});
       frases.push('Hay '+fotos.length+' fotografía(s) suya(s) fechada(s) entre '+desde+' y '+hasta+'.');
     }
+    // Detalle individual de cada fotografía con sus metadatos (antes solo se contaban).
+    fotos.forEach(function(f){
+      var detalles=[];
+      if(f.fecha){
+        var fechaTxt=f.fecha.slice(0,10);
+        if(f.fechaEstimada) fechaTxt+=' (estimada)';
+        else if(f.fuenteFecha==='exif') fechaTxt+=' (fecha EXIF)';
+        detalles.push(fechaTxt);
+      }
+      var desc=String(f.descripcionGoogleFotos||'').trim();
+      if(desc) detalles.push('descripción: "'+desc+'"');
+      var etiquetas=(f.etiquetas||[]).filter(function(x){return String(x).trim();});
+      if(etiquetas.length) detalles.push('etiquetas: '+etiquetas.join(', '));
+      if(f.personasEtiquetadasGoogle && f.personasEtiquetadasGoogle.length){
+        detalles.push('personas etiquetadas: '+f.personasEtiquetadasGoogle.join(', '));
+      }
+      var album=f.albumOrigen||'';
+      if(album && album!=='DOCUMENTOS/'+personaId) detalles.push('álbum: '+album);
+
+      hechos.push({
+        tipo:'fotografia',
+        nombre:f.nombre,
+        fecha:f.fecha||null,
+        descripcion:desc||null,
+        etiquetas:etiquetas,
+        personasEtiquetadas:f.personasEtiquetadasGoogle||[],
+        albumOrigen:album,
+        certeza:'confirmado',
+        fuente:{origen:'fotografia',id:f.id,nombre:f.nombre}
+      });
+
+      if(detalles.length){
+        frases.push('Fotografía "'+f.nombre+'" — '+detalles.join('; ')+'.');
+      }else{
+        frases.push('Fotografía "'+f.nombre+'" (sin metadatos adicionales).');
+      }
+    });
   }
 
   var biografia={
@@ -2236,6 +2273,9 @@ try{
     caja.estado=caja.contadores.dudas>0?'con_dudas':'procesada';
     caja.fechaProcesada=new Date().toISOString();
     await cPut('cajas',caja);
+    // Se recuerda quién fue la última persona cuya caja se terminó de procesar, para
+    // que "Analizar documentos" pueda proponerla por defecto (ver precargarPersonaDefectoRepaso).
+    await guardarCfgValor('ultimaPersonaProcesada',{id:personaId,nombre:personaNombre,fecha:new Date().toISOString()});
     finalizarProgresoAsignacion(true,'Álbum guardado: '+total+' elemento(s) procesado(s).');
     toast('Álbum "'+pendiente.nombreOriginal+'" asignado a '+personaNombre+' y copiado en tu Drive');
   }else{
@@ -2490,6 +2530,22 @@ document.getElementById('inputPersonaRepaso').value=nombre;
 document.getElementById('resultadoBusquedaPersonaRepaso').innerHTML='';
 analizarDocumentosExistentes();
 }
+/* Al entrar en "Analizar documentos", si en esta sesión todavía no se ha elegido a
+   nadie, se propone automáticamente la persona de la última caja/álbum que se terminó
+   de procesar (guardada en resolverAlbumPendiente). Sigue siendo un punto de partida:
+   el campo de búsqueda queda intacto y elegir a otra persona la sustituye sin problema. */
+async function precargarPersonaDefectoRepaso(){
+if(REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id)return;
+try{
+  var u=await leerCfgValor('ultimaPersonaProcesada',null);
+  if(u&&u.id){
+    REPASO_PERSONA_ACTUAL={id:u.id,nombre:u.nombre};
+    var inp=document.getElementById('inputPersonaRepaso');
+    if(inp)inp.value=u.nombre;
+    await analizarDocumentosExistentes();
+  }
+}catch(e){}
+}
 async function sincronizarPersonaElegidaRepaso(){
 if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres sincronizar',true);return;}
 var pid=String(REPASO_PERSONA_ACTUAL.id),nombre=REPASO_PERSONA_ACTUAL.nombre;
@@ -2523,7 +2579,8 @@ if(!elemento){
     googlePhotosDescription:'',googlePhotosTitle:'',googlePhotosUrl:'',googlePhotosJsonOriginal:null,
     esDocumento:esDocumento,ocrProcesado:false,ocrPendiente:esDocumento,
     ocrCompletado:false,ocrTexto:'',ocrConfianza:0,ocrHistorial:[],
-    ocrSugerencias:{campos:[],informativas:[]},ocrHallazgos:{}
+    ocrSugerencias:{campos:[],informativas:[]},ocrHallazgos:{},
+    sincronizadoDrive:false
   };
 }else{
   elemento.personaAsignadaId=String(pid);
@@ -2536,6 +2593,7 @@ if(!elemento){
   elemento.ocrPendiente=esDocumento&&!elemento.ocrProcesado;
   elemento.rutaDrive='DOCUMENTOS/'+pid+'/'+f.name;
   elemento.motivoDuda=null;
+  elemento.sincronizadoDrive=false;
 }
 if(!elemento.miniatura&&(tipo==='imagen'||tipo==='pdf')){
   try{elemento.miniatura=await obtenerMiniaturaDesdeDrive(f.id);}catch(e){}
@@ -2586,8 +2644,14 @@ for(var j=0;j<todos.length;j++){
   reparados++;
 }
 /* Una sola escritura del JSON de la persona: evita subir el mismo JSON creciente
-   una vez por archivo y hace el repaso mucho más rápido en carpetas grandes. */
-if(actualizados||reparados){
+   una vez por archivo y hace el repaso mucho más rápido en carpetas grandes.
+   ADEMÁS: si hay elementos locales de esta persona que nunca se sincronizaron
+   (por ejemplo, registrados en una sesión anterior pero sin conexión a Drive),
+   forzamos la sincronización para que no queden huérfanos. */
+var hayPendientesLocales = todos.some(function(e){
+  return e && String(e.personaAsignadaId)===String(pid) && e.estado!=='descartado' && e.sincronizadoDrive!==true;
+});
+if(actualizados||reparados||hayPendientesLocales){
   await sincronizarPersona(pid,nombre);
 }
 await actualizarResumenOCRPendiente();
@@ -3338,37 +3402,126 @@ async function generarInformePersona(personaId,personaNombre,outputElId){
       if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Todavía no hay documentos ni fotografías analizados de '+esc(personaNombre)+'. Repasa su carpeta primero desde "Analizar documentos".</p>';
       return;
     }
+    arrDocs=arrDocs.slice().sort(function(a,c){return String(a.nombre||'').localeCompare(String(c.nombre||''));});
+    arrFotos=arrFotos.slice().sort(function(a,c){return String(a.fecha||'').localeCompare(String(c.fecha||''));});
+
+    /* Miniaturas reales incrustadas: el informe es un HTML autocontenido que se abre
+       fuera de la sesión de Drive del programa, así que las imágenes no pueden cargarse
+       "en vivo" — se incrustan como base64 en el momento de generar el informe (mismo
+       método que usa la ficha en pantalla, obtenerMiniaturaDesdeDrive). Solo se hace
+       para fotografías (no vídeos ni documentos); si una miniatura falla, esa foto
+       simplemente se queda sin imagen y se ve igual, sin romper el informe. */
+    var fotosImagen=arrFotos.filter(function(e){return e.tipo==='imagen'&&e.driveFileId;});
+    for(var mi=0;mi<fotosImagen.length;mi++){
+      if(out)out.innerHTML='<p><b>Preparando el informe de '+esc(personaNombre)+'…</b><br><span style="font-size:11px;color:var(--muted)">Incrustando miniatura '+(mi+1)+' de '+fotosImagen.length+'</span></p>';
+      try{fotosImagen[mi]._miniatura=await obtenerMiniaturaDesdeDrive(fotosImagen[mi].driveFileId);}catch(e){fotosImagen[mi]._miniatura=null;}
+    }
+
     if(out)out.innerHTML='<p><b>Montando el informe de '+esc(personaNombre)+'…</b></p>';
-    var html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>'+esc(personaNombre)+' — Archivo documental familiar</title><style>body{font-family:Arial,sans-serif;background:#fbf7f0;color:#3d2c1e;max-width:1000px;margin:auto;padding:30px}h1,h2{font-family:Georgia,serif}h1{text-align:center}h3.sub{font-family:Georgia,serif;color:#8a6d4f;margin:22px 0 6px} .res{display:flex;gap:12px;flex-wrap:wrap}.k{background:white;border:1px solid #e8dfd4;border-radius:12px;padding:15px;min-width:150px}.item{background:white;border:1px solid #e8dfd4;border-radius:14px;padding:18px;margin:18px 0}.thumb{max-width:320px;max-height:260px;border-radius:8px}.meta{color:#756657;font-size:13px}.ocr{white-space:pre-wrap;background:#f5efe7;padding:12px;border-radius:8px;font-size:13px;line-height:1.5}.hall{background:#f8efe5;padding:10px;border-radius:8px;margin:8px 0}.pistas{background:#eef6ea;border:1px solid #cfe3c7;padding:10px;border-radius:8px;margin:8px 0;font-size:13px}.fotogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}.foto{background:white;border:1px solid #e8dfd4;border-radius:10px;padding:8px;font-size:12px}.foto img{width:100%;border-radius:6px}</style></head><body><h1>'+esc(personaNombre)+'</h1><p style="text-align:center">Informe generado el '+new Date().toLocaleString('es-ES')+'</p><div class="res"><div class="k"><b>'+(arrDocs.length+arrFotos.length)+'</b><br>archivos analizados</div><div class="k"><b>'+arrDocs.length+'</b><br>documentos</div><div class="k"><b>'+arrFotos.length+'</b><br>fotografías</div><div class="k"><b>'+ocrUtiles+'</b><br>con OCR útil</div></div>';
+    var totalArchivos=arrDocs.length+arrFotos.length;
+    var fechasFotos=arrFotos.map(function(f){return f.fecha;}).filter(Boolean).sort();
+    var periodo=fechasFotos.length?fechasFotos[0].slice(0,4)+'–'+fechasFotos[fechasFotos.length-1].slice(0,4):'';
+
+    var css=''
+    +':root{--bg:#FBF7F0;--card:#fff;--text:#3D2C1E;--muted:#9E8E7E;--accent:#C4653A;--green:#5A8A3C;--blue:#2C5F8A;--border:#E8DFD4}'
+    +'*{box-sizing:border-box}body{margin:0;font-family:"Lato",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}'
+    +'.wrap{max-width:920px;margin:0 auto;padding:46px 22px 90px}'
+    +'.hero{text-align:center;padding:10px 10px 34px;border-bottom:3px double var(--accent);margin-bottom:38px}'
+    +'.hero .crest{font-size:26px;color:var(--accent);margin-bottom:12px}'
+    +'.hero h1{font-family:"Cinzel",Georgia,serif;font-weight:700;font-size:clamp(26px,4vw,38px);margin:0 0 8px;letter-spacing:.5px}'
+    +'.hero .subtitle{font-family:"Cinzel",Georgia,serif;color:var(--muted);letter-spacing:3px;text-transform:uppercase;font-size:12px;margin:0 0 16px}'
+    +'.hero .periodo{font-size:13px;color:var(--accent);margin:0 0 4px;font-weight:700}'
+    +'.hero .meta-date{font-size:11.5px;color:var(--muted);margin:0}'
+    +'.stats{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:46px}'
+    +'.stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 24px;min-width:120px;text-align:center;box-shadow:0 1px 3px rgba(61,44,30,.06)}'
+    +'.stat .n{font-family:"Cinzel",Georgia,serif;font-size:24px;color:var(--accent);display:block}'
+    +'.stat .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}'
+    +'h2.section{font-family:"Cinzel",Georgia,serif;font-size:19px;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:10px;margin:48px 0 22px;display:flex;align-items:center;gap:10px}'
+    +'h2.section .ic{color:var(--accent);font-size:16px}'
+    +'.doc-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 4px rgba(61,44,30,.05)}'
+    +'.doc-card h3{font-family:"Cinzel",Georgia,serif;font-size:15.5px;margin:0 0 8px;color:var(--text)}'
+    +'.doc-meta{font-size:11px;color:var(--muted);margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap}'
+    +'.doc-meta span{background:#f5efe7;padding:3px 9px;border-radius:20px}'
+    +'.doc-link{margin:6px 0}.doc-link a{color:var(--blue);text-decoration:none;font-size:11.5px}.doc-link a:hover{text-decoration:underline}'
+    +'.desc-orig{font-size:12px;color:var(--text);margin:8px 0;font-style:italic}'
+    +'.pistas{background:#eef6ea;border:1px solid #cfe3c7;color:#3f5f2c;padding:12px 14px;border-radius:10px;margin:10px 0;font-size:12px;line-height:1.6}'
+    +'.pistas b{display:block;margin-bottom:4px;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}'
+    +'.hall{background:#f8efe5;padding:12px 14px;border-radius:10px;margin:10px 0}'
+    +'.hall b{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}'
+    +'.hall pre{white-space:pre-wrap;font-size:11.5px;margin:0;font-family:inherit}'
+    +'.ocr-box{margin-top:10px}.ocr-box summary{cursor:pointer;font-size:12px;color:var(--accent);font-weight:700;list-style:none;user-select:none}'
+    +'.ocr-box summary::-webkit-details-marker{display:none}.ocr-box summary:before{content:"▸  "}.ocr-box[open] summary:before{content:"▾  "}'
+    +'.ocr-text{white-space:pre-wrap;background:#f5efe7;padding:14px 16px;border-radius:10px;font-size:12.5px;margin-top:10px;line-height:1.65;max-height:420px;overflow:auto}'
+    +'.foto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}'
+    +'.foto-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(61,44,30,.05)}'
+    +'.foto-card .ph{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#f0e9de}'
+    +'.foto-card .ph-empty{width:100%;aspect-ratio:4/3;background:#f0e9de;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:24px}'
+    +'.foto-info{padding:10px 12px}.foto-info b{font-size:12px;display:block;margin-bottom:4px;word-break:break-word}'
+    +'.foto-info .fmeta{font-size:10.5px;color:var(--muted);line-height:1.6}'
+    +'.foto-info a{font-size:10.5px;color:var(--blue);text-decoration:none}.foto-info a:hover{text-decoration:underline}'
+    +'footer.pie{text-align:center;margin-top:64px;padding-top:22px;border-top:1px solid var(--border);font-size:10.5px;color:var(--muted)}'
+    +'@media print{body{background:#fff}.doc-card,.stat,.foto-card{box-shadow:none}}';
+
+    var html='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<title>'+esc(personaNombre)+' — Archivo documental familiar</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">'
+    +'<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">'
+    +'<style>'+css+'</style></head><body><div class="wrap">'
+    +'<div class="hero"><div class="crest"><i class="fa-solid fa-scroll"></i></div>'
+    +'<h1>'+esc(personaNombre)+'</h1>'
+    +'<p class="subtitle">Archivo documental familiar</p>'
+    +(periodo?'<p class="periodo">'+esc(periodo)+'</p>':'')
+    +'<p class="meta-date">Informe generado el '+esc(new Date().toLocaleString('es-ES'))+'</p></div>'
+    +'<div class="stats">'
+    +'<div class="stat"><span class="n">'+totalArchivos+'</span><span class="l">Archivos</span></div>'
+    +'<div class="stat"><span class="n">'+arrDocs.length+'</span><span class="l">Documentos</span></div>'
+    +'<div class="stat"><span class="n">'+arrFotos.length+'</span><span class="l">Fotografías</span></div>'
+    +'<div class="stat"><span class="n">'+ocrUtiles+'</span><span class="l">Con OCR útil</span></div>'
+    +'</div>';
+
     if(arrDocs.length){
-      html+='<h3 class="sub">Documentos ('+arrDocs.length+')</h3>';
-      arrDocs.slice().sort(function(a,c){return String(a.nombre||'').localeCompare(String(c.nombre||''));}).forEach(function(e){
+      html+='<h2 class="section"><i class="fa-solid fa-file-lines ic"></i> Documentos ('+arrDocs.length+')</h2>';
+      arrDocs.forEach(function(e){
         var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
-        html+='<div class="item"><h3>'+esc(e.nombre||'Documento')+'</h3><p class="meta">documento · OCR '+Number(e.ocrConfianza||0).toFixed(0)+'%'+(e.fecha?' · '+esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (fecha estimada)':''):'')+(e.albumOrigen?' · álbum: '+esc(e.albumOrigen):'')+'</p>'+
-        (link?'<p><a href="'+link+'" target="_blank">Abrir archivo en Google Drive</a></p>':'')+
-        (e.descripcionGoogleFotos?'<p class="meta"><b>Descripción original:</b> '+esc(e.descripcionGoogleFotos)+'</p>':'')+
-        (e.informativas&&e.informativas.length?'<div class="pistas"><b>💡 Pistas encontradas por el OCR</b><br>'+e.informativas.map(esc).join('<br>')+'</div>':'')+
-        (e.hallazgos&&Object.keys(e.hallazgos).length?'<div class="hall"><b>Hallazgos</b><pre class="ocr">'+esc(JSON.stringify(e.hallazgos,null,2))+'</pre></div>':'')+
-        (e.extractoTexto?'<h4>Texto OCR completo</h4><div class="ocr">'+esc(e.extractoTexto)+'</div>':'')+'</div>';
+        html+='<div class="doc-card"><h3>'+esc(e.nombre||'Documento')+'</h3>'
+        +'<div class="doc-meta">'
+        +'<span>OCR '+Number(e.ocrConfianza||0).toFixed(0)+'%</span>'
+        +(e.fecha?'<span>'+esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (estimada)':'')+'</span>':'')
+        +(e.albumOrigen?'<span>álbum: '+esc(e.albumOrigen)+'</span>':'')
+        +'</div>'
+        +(link?'<div class="doc-link"><a href="'+link+'" target="_blank"><i class="fa-brands fa-google-drive"></i> Abrir archivo en Google Drive</a></div>':'')
+        +(e.descripcionGoogleFotos?'<p class="desc-orig">"'+esc(e.descripcionGoogleFotos)+'"</p>':'')
+        +(e.informativas&&e.informativas.length?'<div class="pistas"><b>💡 Pistas encontradas por el OCR</b>'+e.informativas.map(function(t){return esc(t);}).join('<br>')+'</div>':'')
+        +(e.hallazgos&&Object.keys(e.hallazgos).length?'<div class="hall"><b>Hallazgos</b><pre>'+esc(JSON.stringify(e.hallazgos,null,2))+'</pre></div>':'')
+        +(e.extractoTexto?'<details class="ocr-box"><summary>Ver texto OCR completo</summary><div class="ocr-text">'+esc(e.extractoTexto)+'</div></details>':'')
+        +'</div>';
       });
     }
     if(arrFotos.length){
-      html+='<h3 class="sub">Fotografías ('+arrFotos.length+')</h3><div class="fotogrid">';
-      arrFotos.slice().sort(function(a,c){return String(a.fecha||'').localeCompare(String(c.fecha||''));}).forEach(function(e){
+      html+='<h2 class="section"><i class="fa-solid fa-images ic"></i> Fotografías ('+arrFotos.length+')</h2><div class="foto-grid">';
+      arrFotos.forEach(function(e){
         var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
-        html+='<div class="foto"><b>'+esc(e.nombre||'')+'</b><br>'+(e.fecha?esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (est.)':(e.fuenteFecha==='exif'?' (EXIF)':'')):'')+
-        (e.personasEtiquetadasGoogle&&e.personasEtiquetadasGoogle.length?'<br>👤 '+esc(e.personasEtiquetadasGoogle.join(', ')):'')+
-        (link?'<br><a href="'+link+'" target="_blank">Ver en Drive</a>':'')+'</div>';
+        var fechaTxt=e.fecha?esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (est.)':(e.fuenteFecha==='exif'?' (EXIF)':'')):'';
+        html+='<div class="foto-card">'
+        +(e._miniatura?'<img class="ph" src="'+e._miniatura+'" loading="lazy">':'<div class="ph-empty"><i class="fa-solid fa-'+(e.tipo==='video'?'video':'image')+'"></i></div>')
+        +'<div class="foto-info"><b>'+esc(e.nombre||'')+'</b>'
+        +'<div class="fmeta">'+(fechaTxt?fechaTxt+'<br>':'')
+        +(e.descripcionGoogleFotos?esc(e.descripcionGoogleFotos)+'<br>':'')
+        +(e.personasEtiquetadasGoogle&&e.personasEtiquetadasGoogle.length?'<i class="fa-solid fa-user"></i> '+esc(e.personasEtiquetadasGoogle.join(', '))+'<br>':'')
+        +(link?'<a href="'+link+'" target="_blank">Ver en Drive</a>':'')
+        +'</div></div></div>';
       });
       html+='</div>';
     }
-    html+='</body></html>';
+    html+='<footer class="pie">Informe generado automáticamente por el Archivo documental familiar a partir del árbol y de los documentos/fotografías analizados de '+esc(personaNombre)+'. No editado a mano.</footer>';
+    html+='</div></body></html>';
+
     var blob=new Blob([html],{type:'text/html;charset=utf-8'});
     var nombreInforme=String(personaId)+'_informe.html';
     var f=await buscarArchivoPorNombreEnCarpeta(nombreInforme,carpeta.id);
     var up=f?await actualizarBinarioADrive(f.id,blob,'text/html'):await subirBinarioADrive(nombreInforme,blob,'text/html',carpeta.id,'Informe individual de '+personaNombre+', generado a partir de sus documentos y fotografías analizados.');
-    var link='https://drive.google.com/file/d/'+up.id+'/view';
-    if(out)out.innerHTML='<h3>Informe de '+esc(personaNombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(personaId)+'/'+esc(nombreInforme)+'. '+arrDocs.length+' documento(s), '+arrFotos.length+' fotografía(s), '+ocrUtiles+' con OCR útil.</p><a class="btn" target="_blank" href="'+link+'">Abrir informe</a>';
+    var linkDrive='https://drive.google.com/file/d/'+up.id+'/view';
+    if(out)out.innerHTML='<h3>Informe de '+esc(personaNombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(personaId)+'/'+esc(nombreInforme)+'. '+arrDocs.length+' documento(s), '+arrFotos.length+' fotografía(s), '+ocrUtiles+' con OCR útil.</p><a class="btn" target="_blank" href="'+linkDrive+'">Abrir informe</a>';
     toast('Informe de '+personaNombre+' generado y guardado en Drive');
   }catch(e){
     var msgHumano=mensajeErrorHumano(e.message);
