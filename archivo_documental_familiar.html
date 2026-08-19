@@ -315,7 +315,7 @@ var db=null, googleTokenClient=null, driveAccessToken=null, driveTokenExpira=0, 
    código, si el navegador está sirviendo la versión nueva o una vieja cacheada. Si tras
    subir cambios sigue viéndose la fecha antigua, hay que forzar recarga sin caché
    (Ctrl+Shift+R en Windows/Linux, Cmd+Shift+R en Mac). */
-var VERSION_APP='v06 — corrección estructural (19/08/2026)';
+var VERSION_APP='v06.1 — botón Conectar corregido (19/08/2026)';
 var CFG_ORIGEN_ID=null, CFG_DESTINO_ID='1PHLIt4B755m-r0XzEyAC-EU8h4bjSs_6', CFG_BASE_DATOS_ID='1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC', CFG_BACKUP_ARBOL_NOMBRE='backup-arbol.json', CFG_REVISION_ID=null, CFG_FOTO_ID=null, CFG_DOCUMENTOS_ID=null, CFG_AUTO_PERFIL=false;
 var CFG_OCR_ACTIVO=false, CFG_OCR_MAX_PAGINAS=3;
 /* ===== BLOQUE C / G: vía rápida de importación =====
@@ -376,20 +376,57 @@ function cDel(store,id){return new Promise(function(res){var tx=db.transaction(s
 function guardarCfgValor(id,valor){return cPut('cfg',{id:id,valor:valor});}
 function leerCfgValor(id,def){return cGet('cfg',id).then(function(r){return r?r.valor:def;});}
 
-/* ===== GOOGLE DRIVE: conexión (scope completo, ver nota de alcance en Configuración) ===== */
+/* ===== GOOGLE DRIVE: conexión (scope completo, ver nota de alcance en Configuración) =====
+   BUG ENCONTRADO Y CORREGIDO (era la causa de "el botón Conectar a veces falla, y solo
+   al cambiar de pantalla me deja conectar"):
+   google.accounts.oauth2.initTokenClient() se creaba UNA sola vez (patrón correcto, Google
+   lo recomienda así, para no abrir un cliente nuevo cada vez). El problema es que su
+   "callback" y "error_callback" se definían dentro del `if(!googleTokenClient){...}`,
+   es decir, capturaban el resolve/reject de la promesa de la PRIMERA llamada a
+   conectarGoogleDrive() únicamente. En cualquier llamada posterior (el token client ya
+   existía, así que ese bloque no se repetía) se llamaba a requestAccessToken() con una
+   promesa NUEVA — pero cuando Google respondía, invocaba el callback ANTIGUO, que seguía
+   apuntando al resolve/reject de la primera promesa (ya resuelta o nunca resuelta). La
+   promesa nueva (la del clic que el usuario acababa de hacer) se quedaba colgada para
+   siempre: ni resolve ni reject, así que el botón parecía "no hacer nada" = fallar.
+   Cuando el usuario cambiaba de pantalla, el token a veces llegaba de todos modos (porque
+   el callback antiguo SÍ guarda driveAccessToken/driveTokenExpira en las variables
+   globales, aunque resuelva la promesa equivocada) y el resto del programa, al volver a
+   comprobar tokenDriveValido() en el render de la nueva pantalla, ya lo veía conectado.
+   Arreglo: el callback/error_callback se registran una sola vez (igual que antes), pero
+   en vez de capturar el resolve/reject de una promesa concreta, siempre resuelven/
+   rechazan la promesa "pendiente actual" (drivePendienteResolve/drivePendienteReject),
+   que se reasigna en cada llamada a conectarGoogleDrive() justo antes de pedir el token.
+   Así, sea la primera llamada o la número cien, siempre se resuelve la promesa correcta. */
+var drivePendienteResolve=null,drivePendienteReject=null;
 function tokenDriveValido(){return !!(driveAccessToken&&driveTokenExpira&&Date.now()<driveTokenExpira-30000);}
 function conectarGoogleDrive(){
 return new Promise(function(resolve,reject){
 if(!GOOGLE_CLIENT_ID_IMPORT){reject(new Error('Falta configurar el Client ID de Google en Configuración'));return;}
 if(!window.google||!google.accounts||!google.accounts.oauth2){reject(new Error('Google Identity Services no se ha cargado (revisa tu conexión)'));return;}
+// Si ya había una conexión en marcha (p. ej. el usuario pulsó "Conectar" dos veces
+// seguidas), esa promesa anterior queda huérfana; la rechazamos limpiamente en vez de
+// dejarla colgada para siempre, y seguimos con esta nueva petición.
+if(drivePendienteReject)drivePendienteReject(new Error('Se ha iniciado una nueva conexión antes de que terminara la anterior.'));
+drivePendienteResolve=resolve;
+drivePendienteReject=reject;
 if(!googleTokenClient){
 googleTokenClient=google.accounts.oauth2.initTokenClient({
 client_id:GOOGLE_CLIENT_ID_IMPORT,scope:DRIVE_SCOPE_IMPORT,
-callback:function(resp){if(resp&&resp.access_token){driveAccessToken=resp.access_token;driveTokenExpira=Date.now()+((resp.expires_in?parseInt(resp.expires_in,10):3500)*1000);resolve(driveAccessToken);}else reject(new Error('No se recibió el token de acceso'));},
-error_callback:function(err){reject(new Error(err&&err.message?err.message:'Autenticación cancelada'));}
+callback:function(resp){
+var res=drivePendienteResolve,rej=drivePendienteReject;
+drivePendienteResolve=null;drivePendienteReject=null;
+if(resp&&resp.access_token){driveAccessToken=resp.access_token;driveTokenExpira=Date.now()+((resp.expires_in?parseInt(resp.expires_in,10):3500)*1000);if(res)res(driveAccessToken);}
+else if(rej)rej(new Error('No se recibió el token de acceso'));
+},
+error_callback:function(err){
+var rej=drivePendienteReject;
+drivePendienteResolve=null;drivePendienteReject=null;
+if(rej)rej(new Error(err&&err.message?err.message:'Autenticación cancelada'));
+}
 });
 }
-try{googleTokenClient.requestAccessToken({prompt:driveAccessToken?'':'consent'});}catch(err){reject(err);}
+try{googleTokenClient.requestAccessToken({prompt:driveAccessToken?'':'consent'});}catch(err){drivePendienteResolve=null;drivePendienteReject=null;reject(err);}
 });
 }
 function accionConectar(){
