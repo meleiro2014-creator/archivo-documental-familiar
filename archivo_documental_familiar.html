@@ -125,6 +125,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button class="active" data-v="panel" onclick="sv('panel')"><i class="fa-solid fa-gauge"></i> Panel</button>
 <button data-v="cajas" onclick="sv('cajas')"><i class="fa-solid fa-box-open"></i> Cajas</button>
 <button data-v="analizar" onclick="sv('analizar')"><i class="fa-solid fa-folder-tree"></i> Analizar documentos</button>
+<button data-v="explorador" onclick="sv('explorador')"><i class="fa-solid fa-magnifying-glass"></i> Explorador</button>
 <button data-v="informe" onclick="sv('informe')"><i class="fa-solid fa-file-lines"></i> Informe familiar</button>
 <button data-v="cfg" onclick="sv('cfg')"><i class="fa-solid fa-gear"></i> Configuración</button>
 </nav>
@@ -208,7 +209,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button class="btn" onclick="analizarDocumentosExistentes()"><i class="fa-solid fa-folder-open"></i> Repasar carpeta de esta persona</button></div>
 <div class="card" id="resultadoAnalisisExistentes"><p style="color:var(--muted);font-size:12px">Todavía no se ha repasado ninguna carpeta.</p></div>
 <div class="card">
-<p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px">Después de repasar la carpeta (arriba), pulsa esto para grabar de verdad en Drive el <code>&lt;ID&gt;_archivo-documental.json</code> y <code>&lt;ID&gt;_persona.json</code> de esta persona, con los metadatos de todo lo registrado — incluido lo recién detectado en "Registrando automáticamente" — aunque todavía no tenga OCR. Te dice si se ha grabado o no.</p>
+<p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px">Después de repasar la carpeta (arriba), pulsa esto para grabar de verdad en Drive el <code>&lt;ID&gt;_persona.json</code> de esta persona, con los metadatos de todo lo registrado — incluido lo recién detectado en "Registrando automáticamente" — aunque todavía no tenga OCR. Te dice si se ha grabado o no.</p>
 <button class="btn" onclick="guardarJsonPersonaActualRepaso()"><i class="fa-solid fa-floppy-disk"></i> Guardar JSON de esta persona ahora</button>
 <div id="resultadoGuardarJsonPersonaActual" style="margin-top:10px"></div>
 </div>
@@ -226,6 +227,15 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <p style="font-size:11px;color:var(--muted);margin-top:6px">Este botón solo actúa cuando ya no queda OCR pendiente de esta persona.</p>
 </div>
 </div>
+</div>
+<div class="view" id="vExplorador">
+<div class="hero"><h1>Explorador de archivos</h1><p>Consulta, para cualquier persona, exactamente lo que hay grabado en Drive — nada de esto pasa por la memoria del navegador, se lee directamente de la carpeta y de los sidecars en cada visita. Útil para comprobar qué sabe el programa de una foto o documento concreto.</p></div>
+<div class="card"><h3>Elegir persona</h3>
+<div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Buscar persona</span><input id="inputPersonaExplorador" placeholder="Escribe el nombre..." oninput="buscarPersonaParaExplorador(this.value)" autocomplete="off"></div></div>
+<div id="resultadoBusquedaPersonaExplorador" style="font-size:11px;margin-bottom:4px"></div>
+</div>
+<div class="card" id="resultadoExploradorLista"><p style="color:var(--muted);font-size:12px">Elige una persona para ver los archivos de su carpeta.</p></div>
+<div class="card" id="resultadoExploradorDetalle" style="display:none"></div>
 </div>
 <div class="view" id="vInforme">
 <div class="hero"><h1>Informe para la familia</h1><p>Aquí queda únicamente el <b>Catálogo general</b>. Los informes individuales se generan desde "Analizar documentos", donde ya está seleccionada la persona y se sigue el flujo completo.</p></div>
@@ -280,6 +290,10 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <h4 style="margin:0 0 6px">Comprobar y corregir ubicación de archivos en Drive</h4>
 <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Si al marcar algo como "Es foto" o "Es documento" el archivo se quedó realmente en la carpeta "Sin clasificar" (por ejemplo, por un fallo de conexión con Drive), esto lo detecta y lo mueve ahora a DOCUMENTOS/&lt;ID&gt;. Muestra cualquier error en vez de ocultarlo.</p>
 <button class="btn ghost small" onclick="verificarUbicacionesDrive()"><i class="fa-solid fa-magnifying-glass-location"></i> Comprobar ubicación de archivos ya clasificados</button>
+<hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+<h4 style="margin:0 0 6px">Generar el JSON individual (sidecar) de lo ya importado</h4>
+<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Todo lo importado antes de esta versión tiene sus metadatos y su OCR dentro del archivo documental de cada persona, pero no tiene todavía su propio JSON al lado en Drive. Este botón recorre lo ya registrado y genera ese JSON individual, uno por archivo. Con colecciones grandes puede tardar varios minutos: es una escritura a Drive por archivo.</p>
+<button class="btn ghost small" onclick="migrarSidecarsExistentes()"><i class="fa-solid fa-file-circle-plus"></i> Generar JSON individuales de lo ya importado</button>
 </div>
 </div>
 </main>
@@ -318,7 +332,7 @@ var db=null, googleTokenClient=null, driveAccessToken=null, driveTokenExpira=0, 
    código, si el navegador está sirviendo la versión nueva o una vieja cacheada. Si tras
    subir cambios sigue viéndose la fecha antigua, hay que forzar recarga sin caché
    (Ctrl+Shift+R en Windows/Linux, Cmd+Shift+R en Mac). */
-var VERSION_APP='v07.0 — importación automática, OCR y biografía corregidos (19/08/2026)';
+var VERSION_APP='v08.0 — todo en Drive: sidecars ampliados (EXIF/GPS/dimensiones), repaso y sincronización sin IndexedDB, re-OCR bajo demanda y Explorador (20/08/2026)';
 var CFG_ORIGEN_ID=null, CFG_DESTINO_ID='1PHLIt4B755m-r0XzEyAC-EU8h4bjSs_6', CFG_BASE_DATOS_ID='1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC', CFG_BACKUP_ARBOL_NOMBRE='backup-arbol.json', CFG_REVISION_ID=null, CFG_FOTO_ID=null, CFG_DOCUMENTOS_ID=null, CFG_AUTO_PERFIL=false;
 var CFG_OCR_ACTIVO=false, CFG_OCR_MAX_PAGINAS=3;
 /* ===== BLOQUE C / G: vía rápida de importación =====
@@ -368,7 +382,7 @@ function ocultarProgresoGlobal(){
 function toast(m,e){var c=document.getElementById('toastC'),t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;c.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},4000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtBytes(n){if(!n)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function sv(v){['panel','cajas','analizar','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='informe')renderInformeVista();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
+function sv(v){['panel','cajas','analizar','explorador','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='informe')renderInformeVista();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
 
 /* ===== BASE DE DATOS LOCAL (propia, independiente de la de la app de árbol) ===== */
 function oDB(){return new Promise(function(res,rej){var r=indexedDB.open('ArchivoDocumentalFamiliar_v1',1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('cajas'))d.createObjectStore('cajas',{keyPath:'id'});if(!d.objectStoreNames.contains('elementos'))d.createObjectStore('elementos',{keyPath:'id'});if(!d.objectStoreNames.contains('cfg'))d.createObjectStore('cfg',{keyPath:'id'});if(!d.objectStoreNames.contains('pendientes'))d.createObjectStore('pendientes',{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res(db);};r.onerror=function(){rej(r.error);};});}
@@ -579,12 +593,114 @@ var r=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIC
 var d=await leerRespuestaDrive(r,'No se pudo buscar el archivo en Drive');
 return (d.files||[])[0]||null;
 }
+/* ===== JSON individual por archivo (sidecar) en Drive =====
+   Cada archivo de DOCUMENTOS/<ID>/ (foto, PDF, vídeo) tiene su propio JSON al
+   lado, con TODOS sus metadatos y su resultado de OCR. Es la FUENTE DE VERDAD
+   y el ÚNICO sitio donde queda grabado el registro completo de cada archivo:
+   ya no se genera <ID>_archivo-documental.json (existía en versiones
+   anteriores; si una persona lo tiene de antes, se conserva en Drive sin
+   tocarlo, pero no se vuelve a escribir). Lo único que se sigue generando por
+   persona es <ID>_persona.json, un resumen derivado de estos sidecars (ver
+   BLOQUE E, más abajo) para que biografía e informe no tengan que abrir cien
+   archivos de Drive cada vez. IndexedDB, en el navegador, es solo memoria de
+   trabajo de la sesión — se puede vaciar sin perder nada, porque lo que
+   cuenta ya está grabado aquí, en Drive.
+   Nombre del sidecar: <nombreArchivo>.<idDrive>.json — se incluye el ID de
+   Drive a propósito: Drive permite dos archivos con el mismo nombre en la
+   misma carpeta, y sin el ID no habría forma fiable de saber a cuál de los
+   dos pertenece cada sidecar. */
+function nombreSidecarArchivo(elemento){
+var base=(elemento&&(elemento.nombreArchivo||elemento.nombreOriginal))||'archivo';
+return base+'.'+(elemento&&elemento.driveFileId||'')+'.json';
+}
+function construirSidecarArchivo(elemento,personaNombre){
+var personasGoogle=(elemento.googlePhotosMetadata&&Array.isArray(elemento.googlePhotosMetadata.people))
+  ?elemento.googlePhotosMetadata.people.map(function(p){return p&&p.name;}).filter(Boolean)
+  :(elemento.otrasPersonasEtiquetadas||elemento.personasEtiquetadasGoogle||[]);
+return {
+version:2,
+nombreOriginal:elemento.nombreOriginal||null,
+tipo:elemento.tipo||null,
+estado:elemento.estado||null,
+esDocumento:!!elemento.esDocumento,
+driveFileId:elemento.driveFileId||null,
+rutaDrive:elemento.rutaDrive||null,
+fecha:elemento.fecha||null,
+fechaEstimada:!!elemento.fechaEstimada,
+fuenteFecha:elemento.fuenteFecha||null,
+personaAsignadaId:elemento.personaAsignadaId||null,
+personaNombre:personaNombre||(elemento.personas&&elemento.personas[0])||null,
+etiquetas:elemento.etiquetas||[],
+albumOrigen:(elemento.albumesOrigen&&elemento.albumesOrigen[0])||'',
+googlePhotosMetadata:elemento.googlePhotosMetadata||null,
+googlePhotosDescription:elemento.googlePhotosDescription||'',
+googlePhotosTitle:elemento.googlePhotosTitle||'',
+personasEtiquetadasGoogle:personasGoogle,
+/* Metadatos técnicos exprimidos del propio archivo: EXIF completo (cámara, GPS,
+   orientación), dimensiones en píxeles y los datos que Drive guarda de él
+   (tamaño, tipo MIME, md5, fechas de Drive). Se guardan aquí para que este
+   sidecar sea autosuficiente: todo lo que se sabe de la imagen vive en un único
+   sitio, en Drive, sin depender de nada en el navegador. */
+exif:elemento.exif||{},
+dimensiones:elemento.dimensiones||null,
+archivoDrive:elemento.archivoDrive||null,
+ocrProcesado:!!elemento.ocrProcesado,
+ocrTexto:elemento.ocrTexto||'',
+ocrConfianza:Number(elemento.ocrConfianza||0),
+ocrSugerencias:elemento.ocrSugerencias||{campos:[],informativas:[]},
+ocrHallazgos:elemento.ocrHallazgos||{},
+ocrAnalizadoEn:elemento.ocrAnalizadoEn||null,
+actualizado:new Date().toISOString()
+};
+}
+/* Punto único de escritura del sidecar: todas las funciones que crean,
+   actualizan o reubican un archivo la llaman en vez de repetir esta lógica
+   cada una. carpetaId es opcional: si no se conoce (por ejemplo, tras un OCR
+   ejecutado sin tener a mano la carpeta), se consulta a Drive el padre actual
+   del archivo — un poco más lento, pero evita duplicar esta lógica en cada
+   punto de llamada. Nunca lanza: si falla, deja constancia en el propio
+   elemento (sidecarError) y sigue, igual que el sidecar de Google Fotos. */
+async function guardarSidecarArchivo(elemento,carpetaId,personaNombre){
+if(!elemento||!elemento.driveFileId)return null;
+try{
+var parentId=carpetaId;
+if(!parentId){
+  var f=await obtenerArchivoDrive(elemento.driveFileId);
+  parentId=Array.isArray(f.parents)?f.parents[0]:null;
+}
+if(!parentId){elemento.sidecarError='No se encontró la carpeta del archivo en Drive';return null;}
+var nombreSidecar=nombreSidecarArchivo(elemento);
+var contenido=construirSidecarArchivo(elemento,personaNombre);
+var blob=new Blob([JSON.stringify(contenido,null,2)],{type:'application/json;charset=utf-8'});
+var existente=await buscarArchivoPorNombreEnCarpeta(nombreSidecar,parentId);
+if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
+else await subirBinarioADrive(nombreSidecar,blob,'application/json',parentId,'Metadatos y OCR de '+(elemento.nombreOriginal||nombreSidecar)+'. Generado automáticamente; no editar a mano.');
+elemento.sidecarArchivo=nombreSidecar;
+delete elemento.sidecarError;
+return nombreSidecar;
+}catch(err){
+console.warn('No se pudo guardar el sidecar de '+(elemento&&elemento.nombreOriginal)+':',err.message);
+elemento.sidecarError=err.message;
+return null;
+}
+}
+/* Mueve el archivo Y su sidecar como una unidad (punto 5 del informe): busca el
+   sidecar en la carpeta de origen por nombre+ID y lo mueve junto con el
+   archivo. No reescribe su contenido — quien llama debe actualizar rutaDrive
+   en el elemento y llamar después a guardarSidecarArchivo() para dejarlo al
+   día (y crearlo, si el archivo era antiguo y todavía no tenía uno). */
+async function moverArchivoDriveConSidecar(elemento,nuevoParentId,antiguoParentId){
+var resultado=await moverArchivoDrive(elemento.driveFileId,nuevoParentId,antiguoParentId);
+try{
+  var nombreSidecar=nombreSidecarArchivo(elemento);
+  var sidecarViejo=await buscarArchivoPorNombreEnCarpeta(nombreSidecar,antiguoParentId);
+  if(sidecarViejo)await moverArchivoDrive(sidecarViejo.id,nuevoParentId,antiguoParentId);
+}catch(eMov){console.warn('No se pudo mover el sidecar junto con '+(elemento&&elemento.nombreOriginal)+':',eMov.message);}
+return resultado;
+}
 async function cargarBaseDatosDrive(){
   // v1.0: ya no existe fotografias.json. Se conserva esta función solo por compatibilidad interna.
   return {version:2,actualizado:new Date().toISOString(),personas:{}};
-}
-function prepararRegistroBaseDatos(elemento){
-  var r=JSON.parse(JSON.stringify(elemento)); delete r.miniatura; return r;
 }
 /* Los nombres de archivo empiezan por el ID de la persona (p.ej. "1252_persona.json")
    para poder distinguir a quién pertenece cada uno si se descargan varios desde Drive
@@ -618,11 +734,16 @@ async function cargarArchivoDocumentalPersona(personaId,personaNombre){
   if(!bd.archivos)bd.archivos={}; return {file:f,carpeta:carpeta,bd:bd};
 }
 /* ===== BLOQUE E: _persona.json =====
-   Además del archivo-documental.json interno (con el registro completo de cada
-   elemento), guardamos junto a él un resumen legible y compacto, _persona.json,
-   pensado para leerse de un vistazo y para que el informe familiar (BLOQUE F) no
-   tenga que reconstruir nada: solo lee este resumen. Se regenera automáticamente
-   cada vez que se guarda un elemento de la persona. No se edita a mano. */
+   Resumen legible y compacto por persona, pensado para leerse de un vistazo y
+   para que el informe familiar y la biografía (BLOQUEs F y G) no tengan que
+   reconstruir nada: solo lo leen a él. Es el ÚNICO agregado por persona que se
+   guarda en Drive — ya no existe <ID>_archivo-documental.json (v1.1): esa
+   información completa (metadatos + OCR de cada archivo) vive ahora en el
+   sidecar propio de cada archivo (<nombre>.<idDrive>.json, ver más arriba),
+   que es la fuente de verdad. _persona.json se reconstruye cada vez a partir
+   de lo que hay en el navegador (IndexedDB) — que a su vez se ha ido llenando
+   leyendo los sidecars de Drive —, no de ningún archivo intermedio en Drive.
+   No se edita a mano. */
 /* Resumen de un DOCUMENTO (esDocumento===true) para _persona.json. Antes se cortaba el
    texto OCR a 300 caracteres y se descartaban las "informativas" (las pistas en frase,
    tipo "Posible padre: X"), que son justo lo más legible para un informe familiar. Ahora
@@ -658,7 +779,9 @@ function resumirFotografiaParaPersonaJson(r){
   };
 }
 async function actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD){
-  var lista=Object.keys(archivosBD||{}).map(function(k){return archivosBD[k];}).filter(function(x){return x&&x.estado!=='descartado';});
+  // Admite tanto un diccionario {id:elemento} (uso antiguo, IndexedDB) como un array
+  // plano de entradas (uso nuevo: sidecars leídos directamente de Drive).
+  var lista=(Array.isArray(archivosBD)?archivosBD:Object.keys(archivosBD||{}).map(function(k){return archivosBD[k];})).filter(function(x){return x&&x.estado!=='descartado';});
   var documentos=lista.filter(function(x){return x.esDocumento===true;});
   var fotografias=lista.filter(function(x){return x.esDocumento===false;});
   var persona={
@@ -680,51 +803,90 @@ async function actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD)
   try{
     var existente=await buscarConMigracionDeNombre(nombreNuevo,'_persona.json',carpeta.id);
     if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
-    else await subirBinarioADrive(nombreNuevo,blob,'application/json',carpeta.id,'Resumen legible de los documentos de '+personaNombre+'. Generado automáticamente a partir de '+nombreArchivoDocumental(personaId)+'; no editar a mano.');
+    else await subirBinarioADrive(nombreNuevo,blob,'application/json',carpeta.id,'Resumen legible de los documentos de '+personaNombre+'. Generado automáticamente a partir del JSON individual de cada archivo; no editar a mano.');
   }catch(err){console.warn('No se pudo guardar '+nombreNuevo+' de '+personaNombre+':',err.message);}
   return persona;
 }
-async function guardarBaseDatosDrive(elemento){
+/* ===== Reconstrucción de _persona.json SOLO desde Drive =====
+   Lee todos los sidecars (<nombre>.<idDrive>.json) que hay en la carpeta de la
+   persona, directamente de Drive, y con eso reconstruye _persona.json. No toca
+   IndexedDB en ningún momento: si abres el programa en otro navegador, con el
+   caché vacío, el resultado es exactamente el mismo, porque toda la información
+   que hace falta ya vive en Drive. */
+function esNombreDeSidecarPropio(nombre){
+  // <algo>.<idDriveLargo>.json — se excluyen explícitamente los JSON especiales
+  // (persona, biografía, google-photos) que no son sidecars de un archivo.
+  if(!/\.[a-zA-Z0-9_-]{10,}\.json$/i.test(nombre))return false;
+  if(/\.google-photos\.json$/i.test(nombre))return false;
+  if(/^_persona\.json$|_persona\.json$/i.test(nombre))return false;
+  if(/^_biografia\.json$|_biografia\.json$/i.test(nombre))return false;
+  return true;
+}
+async function listarSidecarsDeCarpeta(carpetaId){
+  var archivos=await listarTodosArchivosDrive("'"+carpetaId+"' in parents and trashed=false and mimeType='application/json'","id,name,mimeType");
+  var sidecarsInfo=archivos.filter(function(f){return esNombreDeSidecarPropio(f.name);});
+  var resultado=[];
+  for(var i=0;i<sidecarsInfo.length;i++){
+    try{
+      var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(sidecarsInfo[i].id)+'?alt=media');
+      if(!r.ok)continue;
+      var contenido=JSON.parse(await r.text());
+      // Adapta el sidecar (campo albumOrigen, sin "id") a la forma que ya esperan
+      // resumirDocumentoParaPersonaJson/resumirFotografiaParaPersonaJson.
+      contenido.id=contenido.driveFileId||sidecarsInfo[i].id;
+      contenido.nombreOriginal=contenido.nombreOriginal||sidecarsInfo[i].name;
+      contenido.albumesOrigen=contenido.albumOrigen?[contenido.albumOrigen]:[];
+      resultado.push(contenido);
+    }catch(e){console.warn('Sidecar ilegible ('+sidecarsInfo[i].name+'):',e.message);}
+  }
+  return resultado;
+}
+async function reconstruirPersonaJsonDesdeDrive(personaId,personaNombre){
+  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
+  var lista=await listarSidecarsDeCarpeta(carpeta.id);
+  await actualizarPersonaJson(personaId,personaNombre,carpeta,lista);
+  return{sincronizados:lista.length};
+}
+/* Reconstruye y graba en Drive el _persona.json de UN elemento concreto, a
+   partir de lo que ya hay en IndexedDB para esa persona. Ya NO se lee ni se
+   escribe ningún <ID>_archivo-documental.json intermedio: IndexedDB es solo
+   memoria de trabajo del navegador (se puede borrar sin perder nada, porque
+   lo que de verdad queda grabado —metadatos y OCR de cada archivo— está en
+   el sidecar de ese archivo en Drive); aquí simplemente se usa para reunir de
+   un vistazo todo lo que ya se sabe de la persona y volcarlo al resumen. */
+async function actualizarPersonaJsonDesdeLocal(elemento){
   if(!elemento || !elemento.personaAsignadaId)return;
   var personaId=elemento.personaAsignadaId;
   var personaNombre=(elemento.personas&&elemento.personas[0])||elemento.personaAsignadaNombre||('Persona '+personaId);
-  var obj=await cargarArchivoDocumentalPersona(personaId,personaNombre);
-  var r=prepararRegistroBaseDatos(elemento);
-  r.registradoEnArchivoDocumental=new Date().toISOString();
-  obj.bd.version=1; obj.bd.tipo='archivo-documental-personal'; obj.bd.personaId=String(personaId); obj.bd.personaNombre=personaNombre; obj.bd.actualizado=new Date().toISOString();
-  obj.bd.archivos[elemento.id]=r;
-  var blob=new Blob([JSON.stringify(obj.bd,null,2)],{type:'application/json;charset=utf-8'});
-  if(obj.file) await actualizarBinarioADrive(obj.file.id,blob,'application/json');
-  else {var subida=await subirBinarioADrive(nombreArchivoDocumental(personaId),blob,'application/json',obj.carpeta.id,'Archivo documental de '+personaNombre+'. Solo lectura respecto al árbol genealógico.');}
-  await actualizarPersonaJson(personaId,personaNombre,obj.carpeta,obj.bd.archivos);
+  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
+  var locales=await cAll('elementos');
+  var archivosBD={};
+  locales.forEach(function(e){if(e && String(e.personaAsignadaId)===String(personaId))archivosBD[e.id]=e;});
+  archivosBD[elemento.id]=elemento; // por si el cPut del llamador todavía no se refleja en cAll
+  await actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD);
 }
 /* =====================================================================
    SINCRONIZACIÓN MANUAL DEL REGISTRO CON DRIVE (botón, no automático)
-   Antes, cada foto/documento clasificado subía su propio archivo-documental.json y
-   _persona.json COMPLETOS a Drive, uno a uno. Con una persona de miles de fotos, ese
-   archivo va creciendo y se vuelve a subir entero en cada foto — el import se frenaba
-   cada vez más según avanzaba. Ahora el archivo físico se copia/mueve al momento (eso
-   no cambia), pero el REGISTRO se queda marcado como "pendiente" en tu navegador y solo
-   se sube a Drive cuando TÚ pulsas "Sincronizar" — de una sola vez por persona, sin
-   importar si son 5 fotos o 5.000.
+   Reescribe el _persona.json de una persona a partir de TODO lo que ya está
+   en IndexedDB para ella. Antes esta función también leía/escribía un
+   <ID>_archivo-documental.json completo en cada llamada; ya no existe: el
+   registro completo de cada archivo (metadatos + OCR) vive en su propio
+   sidecar en Drive, así que aquí basta con IndexedDB para reunir la lista de
+   la persona y volcar el resumen.
    ===================================================================== */
 async function sincronizarPersona(personaId,personaNombre){
-  var locales=await cAll('elementos');
-  var deEsta=locales.filter(function(e){return e && String(e.personaAsignadaId)===String(personaId) && e.estado!=='descartado';});
-  if(!deEsta.length)return{sincronizados:0};
-  var obj=await cargarArchivoDocumentalPersona(personaId,personaNombre);
-  deEsta.forEach(function(el){
-    var r=prepararRegistroBaseDatos(el);
-    r.registradoEnArchivoDocumental=new Date().toISOString();
-    obj.bd.archivos[el.id]=r;
-  });
-  obj.bd.version=1; obj.bd.tipo='archivo-documental-personal'; obj.bd.personaId=String(personaId); obj.bd.personaNombre=personaNombre; obj.bd.actualizado=new Date().toISOString();
-  var blob=new Blob([JSON.stringify(obj.bd,null,2)],{type:'application/json;charset=utf-8'});
-  if(obj.file) await actualizarBinarioADrive(obj.file.id,blob,'application/json');
-  else await subirBinarioADrive(nombreArchivoDocumental(personaId),blob,'application/json',obj.carpeta.id,'Archivo documental de '+personaNombre+'. Solo lectura respecto al árbol genealógico.');
-  await actualizarPersonaJson(personaId,personaNombre,obj.carpeta,obj.bd.archivos);
-  for(var i=0;i<deEsta.length;i++){deEsta[i].sincronizadoDrive=true;await cPut('elementos',deEsta[i]);}
-  return{sincronizados:deEsta.length};
+  // Ya no lee IndexedDB: reconstruye _persona.json leyendo, uno a uno, los
+  // sidecars que hay en la carpeta de la persona en Drive. Así el resultado es
+  // idéntico venga de donde venga (mismo navegador, otro navegador, u otro día).
+  var r=await reconstruirPersonaJsonDesdeDrive(personaId,personaNombre);
+  // Si por compatibilidad quedan elementos locales marcados como pendientes,
+  // los limpiamos (es solo un aviso en pantalla, ya no afecta a lo que se graba).
+  try{
+    var locales=await cAll('elementos');
+    var deEsta=locales.filter(function(e){return e && String(e.personaAsignadaId)===String(personaId);});
+    for(var i=0;i<deEsta.length;i++){deEsta[i].sincronizadoDrive=true;await cPut('elementos',deEsta[i]);}
+  }catch(e){/* si no hay IndexedDB o está vacía, no pasa nada: Drive ya quedó al día */}
+  return r;
 }
 /* Guardado MANUAL y sin condiciones, para la persona elegida en "1. Elegir persona".
    A diferencia de sincronizarPersonaElegidaRepaso() (que se niega a hacer nada si a esa
@@ -744,17 +906,18 @@ async function guardarJsonPersonaActualRepaso(){
   var pid=String(REPASO_PERSONA_ACTUAL.id),nombre=REPASO_PERSONA_ACTUAL.nombre;
   if(out)out.innerHTML='<p><span class="spinner"></span> Grabando el JSON de '+esc(nombre)+'…</p>';
   try{
-    var todos=await cAll('elementos');
-    var deEsta=todos.filter(function(e){return e && String(e.personaAsignadaId)===pid && e.estado!=='descartado';});
+    // Se lee directamente de los sidecars en Drive (no de IndexedDB): el resultado
+    // es el mismo se haga desde el navegador que se haga.
+    var carpeta=await carpetaDocumentosPersona(pid,nombre);
+    var deEsta=await listarSidecarsDeCarpeta(carpeta.id);
     if(!deEsta.length){
       if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">'+esc(nombre)+' todavía no tiene ningún documento ni fotografía registrado. Pulsa antes "Repasar carpeta de esta persona".</p>';
       return;
     }
     var r=await sincronizarPersona(pid,nombre);
-    await renderPendientesSincronizar();
     var docs=deEsta.filter(function(e){return e.esDocumento===true;});
     var fotos=deEsta.filter(function(e){return e.esDocumento!==true;});
-    var html='<p style="font-size:12px"><b>✓ Grabado en Drive:</b> <code>'+esc(pid)+'_archivo-documental.json</code> y <code>'+esc(pid)+'_persona.json</code> ('+r.sincronizados+' elemento(s) de '+esc(nombre)+').</p>';
+    var html='<p style="font-size:12px"><b>✓ Grabado en Drive:</b> <code>'+esc(pid)+'_persona.json</code> ('+r.sincronizados+' elemento(s) de '+esc(nombre)+').</p>';
     if(docs.length){
       html+='<p style="font-size:11.5px;color:var(--muted);margin-top:8px"><b>Documentos incluidos ('+docs.length+'):</b></p><ul style="margin:4px 0 0;padding-left:18px;font-size:11.5px">';
       html+=docs.map(function(d){return '<li>'+esc(d.nombreOriginal||d.id)+(d.ocrProcesado?' — con OCR':' — <span style="color:var(--accent)">OCR pendiente, metadatos ya grabados</span>')+'</li>';}).join('');
@@ -1482,6 +1645,83 @@ terminar(isNaN(d.getTime())?null:d);
 }catch(eLib){clearTimeout(tope);terminar(null);}
 });
 }
+/* ===== EXIF completo + dimensiones =====
+   A diferencia de extraerFechaExifDeBlob (que solo mira la fecha, para tener un
+   dato de respaldo rápido durante la importación), esta función saca TODO lo que
+   trae el EXIF de una imagen para que quede guardado en su sidecar: cámara,
+   coordenadas GPS (si las hay), orientación y la fecha original en crudo. Se llama
+   una vez por archivo, igual que la miniatura; si no hay EXIF o la librería falla,
+   resuelve con un objeto vacío y el programa sigue sin bloquearse. */
+function extraerExifCompletoDeBlob(blob){
+return new Promise(function(resolve){
+if(typeof EXIF==='undefined'){resolve({});return;}
+var resuelto=false;
+var terminar=function(v){if(resuelto)return;resuelto=true;resolve(v||{});};
+var tope=setTimeout(function(){terminar({});},3000);
+try{
+EXIF.getData(blob,function(){
+clearTimeout(tope);
+try{
+var lat=EXIF.getTag(this,'GPSLatitude'),lon=EXIF.getTag(this,'GPSLongitude');
+var latRef=EXIF.getTag(this,'GPSLatitudeRef'),lonRef=EXIF.getTag(this,'GPSLongitudeRef');
+var gps=null;
+if(Array.isArray(lat)&&Array.isArray(lon)&&lat.length===3&&lon.length===3){
+  var toDeg=function(v){return v[0]+v[1]/60+v[2]/3600;};
+  var latDeg=toDeg(lat)*(latRef==='S'?-1:1);
+  var lonDeg=toDeg(lon)*(lonRef==='W'?-1:1);
+  if(!isNaN(latDeg)&&!isNaN(lonDeg))gps={lat:Number(latDeg.toFixed(6)),lon:Number(lonDeg.toFixed(6))};
+}
+var out={
+  camaraMarca:EXIF.getTag(this,'Make')||null,
+  camaraModelo:EXIF.getTag(this,'Model')||null,
+  orientacion:EXIF.getTag(this,'Orientation')||null,
+  fechaOriginalTexto:EXIF.getTag(this,'DateTimeOriginal')||EXIF.getTag(this,'DateTime')||null,
+  anchoOriginal:EXIF.getTag(this,'PixelXDimension')||null,
+  altoOriginal:EXIF.getTag(this,'PixelYDimension')||null,
+  gps:gps
+};
+terminar(out);
+}catch(eTag){terminar({});}
+});
+}catch(eLib){clearTimeout(tope);terminar({});}
+});
+}
+/* Dimensiones reales del archivo de imagen (ancho x alto en píxeles), leídas
+   decodificando la imagen en memoria — no dependen de que el EXIF las traiga
+   (muchas cámaras/móviles no las incluyen en el EXIF, pero el propio archivo
+   siempre tiene un tamaño real). */
+function obtenerDimensionesImagen(blob){
+return new Promise(function(resolve){
+var img=new Image(),url=URL.createObjectURL(blob);
+var listo=false;
+var terminar=function(v){if(listo)return;listo=true;URL.revokeObjectURL(url);resolve(v);};
+img.onload=function(){terminar({ancho:img.naturalWidth||null,alto:img.naturalHeight||null});};
+img.onerror=function(){terminar(null);};
+img.src=url;
+setTimeout(function(){terminar(null);},4000);
+});
+}
+/* Reúne en un solo objeto todo lo que se puede exprimir de un archivo antes de
+   subirlo/registrarlo: EXIF completo (solo imágenes), dimensiones (solo imágenes)
+   y los metadatos que ya conoce Drive del propio archivo (tamaño, tipo MIME,
+   md5, fechas de Drive). driveInfo son los campos que ya devuelve Drive al
+   subir/listar (id,size,md5Checksum,mimeType,createdTime,modifiedTime) — se
+   reutilizan tal cual para no repetir una llamada de red. */
+async function extraerMetadatosCompletos(blob,tipo,driveInfo){
+var exif={},dimensiones=null;
+if(tipo==='imagen'){
+  try{exif=await extraerExifCompletoDeBlob(blob);}catch(e){exif={};}
+  try{dimensiones=await obtenerDimensionesImagen(blob);}catch(e){dimensiones=null;}
+}
+var archivoDrive={
+  tamano:(driveInfo&&Number(driveInfo.size))||(blob&&blob.size)||null,
+  mimeType:(driveInfo&&driveInfo.mimeType)||(blob&&blob.type)||null,
+  md5Checksum:(driveInfo&&driveInfo.md5Checksum)||null,
+  creadoDrive:(driveInfo&&driveInfo.createdTime)||null,
+  modificadoDrive:(driveInfo&&driveInfo.modifiedTime)||null
+};
+return {exif:exif,dimensiones:dimensiones,archivoDrive:archivoDrive};
+}
 async function generarMiniatura(blob,tipo){
 if(tipo==='pdf'){
   try{
@@ -1635,8 +1875,11 @@ if(jsonData){
 }
 if(ocrInfo.text){existente.ocrProcesado=true;existente.ocrTexto=ocrInfo.text.slice(0,12000);existente.ocrConfianza=Number(ocrInfo.confidence||0);existente.ocrHistorial=ocrInfo.ocrHistorial||existente.ocrHistorial||[];existente.ocrSugerencias=ocrInfo.text.trim().length>=20?analizarTextoGenealogico(ocrInfo.text, (existente.personas&&existente.personas[0])||existente.personaAsignadaNombre||''):{campos:[],informativas:[]}; existente.ocrHallazgos=generarHallazgosOCR(ocrInfo.text,ocrInfo.confidence);}
 if(existente.driveFileId){
-  // El archivo físico ya está en Drive: nos limitamos a actualizar la ficha.
+  // El archivo físico ya está en Drive: nos limitamos a actualizar la ficha
+  // y, con ella, su sidecar (los datos de Google Fotos/etiquetas pueden haber
+  // cambiado aunque el archivo en sí no se vuelva a subir).
   if(existente.personaAsignadaId)existente.sincronizadoDrive=false;
+  await guardarSidecarArchivo(existente,null,personaNombre);
   await cPut('elementos',existente);
   caja.contadores.total=(caja.contadores.total||0)+1;
   await cPut('cajas',caja);
@@ -1735,7 +1978,16 @@ if(duplicadoDrive){
 elemento.driveFileId=subida.id;
 elemento.rutaDrive=carpetaDestino.ruta;
 elemento.md5=md5||elemento.md5||null;
-if(duplicadoDrive&&duplicadoDrive.driveFile&&Array.isArray(duplicadoDrive.driveFile.parents)&&duplicadoDrive.driveFile.parents.indexOf(carpetaDestino.id)<0){try{await moverArchivoDrive(duplicadoDrive.id,carpetaDestino.id,duplicadoDrive.driveFile.parents[0]);}catch(e){console.warn('No se pudo mover el duplicado a la carpeta destino:',e.message);}}
+if(duplicadoDrive&&duplicadoDrive.driveFile&&Array.isArray(duplicadoDrive.driveFile.parents)&&duplicadoDrive.driveFile.parents.indexOf(carpetaDestino.id)<0){try{await moverArchivoDriveConSidecar(elemento,carpetaDestino.id,duplicadoDrive.driveFile.parents[0]);}catch(e){console.warn('No se pudo mover el duplicado a la carpeta destino:',e.message);}}
+
+// Exprime del archivo todo lo que se pueda antes de dejarlo escrito en su sidecar:
+// EXIF completo, dimensiones y los datos que Drive ya conoce de él (tamaño, MIME, md5).
+try{
+  var metaCompletos=await extraerMetadatosCompletos(subirBlob,tipo,{size:subida.size,mimeType:mimeSubida,md5Checksum:subida.md5Checksum});
+  elemento.exif=metaCompletos.exif;
+  elemento.dimensiones=metaCompletos.dimensiones;
+  elemento.archivoDrive=metaCompletos.archivoDrive;
+}catch(eMeta){console.warn('No se pudieron extraer metadatos técnicos de '+nombreArchivo+':',eMeta.message);}
 
 // Guardamos también un sidecar JSON junto a la fotografía. Así la información original
 // de Google Fotos sigue siendo recuperable aunque la foto salga de esta aplicación.
@@ -1753,8 +2005,14 @@ if(jsonData){
   }
 }
 
-// BLOQUE "Sincronizar registros": ya NO se sube archivo-documental.json/_persona.json
-// aquí, foto a foto (eso es lo que hacía que un álbum grande se fuera frenando cada vez
+// Sidecar propio del archivo (<nombre>.<idDrive>.json): metadatos + OCR (sin
+// OCR todavía en este punto, se añade después desde ejecutarOCR). Es distinto
+// del sidecar de Google Fotos de arriba, que solo conserva el JSON original tal
+// cual lo exportó Google Fotos.
+await guardarSidecarArchivo(elemento,carpetaDestino.id,personaNombre);
+
+// BLOQUE "Sincronizar registros": ya NO se sube _persona.json aquí, foto a
+// foto (eso es lo que hacía que un álbum grande se fuera frenando cada vez
 // más, subiendo un archivo cada vez más grande en cada foto). El archivo físico ya está
 // copiado y a salvo en Drive; el REGISTRO se sincroniza aparte, de una sola vez por
 // persona, cuando tú pulsas "Sincronizar" (ver sincronizarPersona más abajo).
@@ -1959,12 +2217,16 @@ elemento.ocrHallazgos=generarHallazgosOCR(elemento.ocrTexto,elemento.ocrConfianz
 elemento.ocrAnalizadoEn=new Date().toISOString();
 delete elemento.ocrError;
 await cPut('elementos',elemento);
+// Actualiza (no recrea) el sidecar del archivo con el resultado del OCR. No se
+// conoce aquí la carpeta de destino, así que guardarSidecarArchivo consulta a
+// Drive el padre actual del archivo.
+await guardarSidecarArchivo(elemento,null,(elemento.personas&&elemento.personas[0])||null);
 // v06: aquí es exactamente donde antes se perdía el resultado. El OCR terminaba,
 // se guardaba en IndexedDB (este cPut) y ahí se quedaba hasta que alguien pulsara
 // "Sincronizar" a mano. Ahora, en cuanto el OCR termina, la ficha completa (con su
-// texto, sus sugerencias y sus hallazgos) se guarda al momento en Drive —
-// archivo-documental.json y _persona.json de la persona— para que biografía e informe
-// la vean sin depender de ningún paso manual posterior.
+// texto, sus sugerencias y sus hallazgos) se guarda al momento en Drive — en su
+// propio sidecar (arriba) y en el _persona.json de la persona— para que
+// biografía e informe la vean sin depender de ningún paso manual posterior.
 if(elemento.personaAsignadaId){
   await guardarFichaAlMomento(elemento);
 }
@@ -2160,6 +2422,7 @@ async function consolidarDuplicadosYaImportados(){
         el.nombreArchivo=dup.nombre||el.nombreArchivo;
         el.rutaDrive='DOCUMENTOS/'+el.personaAsignadaId+'/ ('+pnom+')';
         el.sincronizadoDrive=false;
+        await guardarSidecarArchivo(el,null,pnom);
         await cPut('elementos',el);
         encontrados++;
       }
@@ -2620,62 +2883,196 @@ try{
 async function sincronizarPersonaElegidaRepaso(){
 if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres sincronizar',true);return;}
 var pid=String(REPASO_PERSONA_ACTUAL.id),nombre=REPASO_PERSONA_ACTUAL.nombre;
-var todos=await cAll('elementos');
-var pendientes=todos.filter(function(e){
-return e&&String(e.personaAsignadaId)===pid&&e.esDocumento===true&&e.ocrPendiente===true;
-});
+var carpeta=await carpetaDocumentosPersona(pid,nombre);
+var sidecars=await listarSidecarsDeCarpeta(carpeta.id);
+var pendientes=sidecars.filter(function(s){return s&&s.esDocumento===true&&!s.ocrProcesado;});
 if(pendientes.length){
 toast('Primero termina el OCR de '+pendientes.length+' documento(s) de '+nombre+'.',true);
 return;
 }
 await sincronizarUnaPersonaUI(pid,nombre);
 }
-async function registrarArchivoExistenteAutomaticamente(f,pid,nombre){
+/* =====================================================================
+   EXPLORADOR — pestaña independiente de solo lectura.
+   Todo lo que muestra viene de leer, en el momento, la carpeta de la persona
+   en Drive y el contenido de cada sidecar. No usa IndexedDB en ningún punto:
+   abrir esta pestaña en otro navegador da exactamente el mismo resultado.
+   ===================================================================== */
+var EXPLORADOR_PERSONA_ACTUAL=null;
+var EXPLORADOR_ARCHIVOS=[];
+function buscarPersonaParaExplorador(q){
+var cont=document.getElementById('resultadoBusquedaPersonaExplorador');
+if(!q||q.length<2){if(cont)cont.innerHTML='';return;}
+cargarPersonasArbol().then(function(personas){
+var qn=normalizarTextoPersona(q);
+var res=personas.filter(function(p){return normalizarTextoPersona(p._nombreCompleto).indexOf(qn)>=0||String(p.ID)===q.trim();}).slice(0,12);
+if(!cont)return;
+cont.innerHTML=res.length?res.map(function(p){return '<span class="badge" style="cursor:pointer" onclick="elegirPersonaExplorador(\''+esc(p.ID)+'\',\''+esc(p._nombreCompleto).replace(/'/g,"&#39;")+'\')">'+esc(p._nombreCompleto)+' (ID '+esc(p.ID)+')</span>';}).join(' '):'<span style="color:var(--muted)">Sin coincidencias</span>';
+});
+}
+async function elegirPersonaExplorador(pid,nombre){
+EXPLORADOR_PERSONA_ACTUAL={id:pid,nombre:nombre};
+document.getElementById('inputPersonaExplorador').value=nombre;
+document.getElementById('resultadoBusquedaPersonaExplorador').innerHTML='';
+document.getElementById('resultadoExploradorDetalle').style.display='none';
+var lista=document.getElementById('resultadoExploradorLista');
+lista.innerHTML='<p><span class="spinner"></span> Leyendo la carpeta de '+esc(nombre)+' en Drive…</p>';
+try{
+var carpeta=await carpetaDocumentosPersona(pid,nombre);
+EXPLORADOR_ARCHIVOS=await listarSidecarsDeCarpeta(carpeta.id);
+renderExploradorLista();
+}catch(err){
+lista.innerHTML='<p style="color:var(--warn);font-size:12px">No se pudo leer la carpeta. '+esc(mensajeErrorHumano(err.message))+'</p>';
+}
+}
+function renderExploradorLista(){
+var cont=document.getElementById('resultadoExploradorLista');
+if(!cont)return;
+if(!EXPLORADOR_ARCHIVOS.length){
+cont.innerHTML='<p style="color:var(--muted);font-size:12px">No hay ningún archivo registrado (con sidecar) todavía en la carpeta de '+esc(EXPLORADOR_PERSONA_ACTUAL.nombre)+'. Ve a "Analizar documentos" y pulsa "Repasar carpeta" primero.</p>';
+return;
+}
+var docs=EXPLORADOR_ARCHIVOS.filter(function(x){return x.esDocumento===true;});
+var fotos=EXPLORADOR_ARCHIVOS.filter(function(x){return x.esDocumento!==true;});
+var html='<h3>'+esc(EXPLORADOR_PERSONA_ACTUAL.nombre)+' — '+EXPLORADOR_ARCHIVOS.length+' archivo(s) <span style="font-weight:400;color:var(--muted);font-size:11px">('+docs.length+' documento(s), '+fotos.length+' fotografía(s)/vídeo(s))</span></h3>';
+html+='<div class="duda-grid" style="margin-top:10px">';
+html+=EXPLORADOR_ARCHIVOS.map(function(el,idx){
+var cacheada=_miniaturaCacheSesion[el.driveFileId];
+return '<div class="duda-card" style="cursor:pointer" onclick="verDetalleExplorador('+idx+')">'+
+(cacheada?'<img class="duda-thumb" id="miniExp_'+idx+'" src="'+cacheada+'">':'<div class="duda-thumb" id="miniExp_'+idx+'" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-'+(el.esDocumento?'file':'image')+'" style="font-size:26px"></i></div>')+
+'<div class="duda-meta"><b>'+esc(el.nombreOriginal||'')+'</b><br>'+(el.esDocumento?'Documento':'Fotografía')+(el.ocrProcesado?' · OCR ✓':(el.esDocumento?' · OCR pendiente':''))+'</div></div>';
+}).join('')+'</div>';
+cont.innerHTML=html;
+EXPLORADOR_ARCHIVOS.forEach(function(el,idx){
+if(_miniaturaCacheSesion[el.driveFileId])return;
+obtenerMiniaturaDesdeDrive(el.driveFileId).then(function(mini){
+if(!mini)return;
+_miniaturaCacheSesion[el.driveFileId]=mini;
+var img=document.getElementById('miniExp_'+idx);
+if(img&&img.tagName==='DIV'){img.outerHTML='<img class="duda-thumb" id="miniExp_'+idx+'" src="'+mini+'">';}
+}).catch(function(){});
+});
+}
+function _fmtBytes(n){
+if(!n)return '—';
+var u=['B','KB','MB','GB'],i=0;
+while(n>=1024&&i<u.length-1){n/=1024;i++;}
+return n.toFixed(i?1:0)+' '+u[i];
+}
+function verDetalleExplorador(idx){
+var el=EXPLORADOR_ARCHIVOS[idx];
+if(!el)return;
+var det=document.getElementById('resultadoExploradorDetalle');
+var exif=el.exif||{};
+var filas=[];
+filas.push(['Nombre',esc(el.nombreOriginal||'')]);
+filas.push(['Tipo',esc(el.tipo||'')+(el.esDocumento?' (marcado como documento)':' (marcado como fotografía)')]);
+filas.push(['Fecha',esc((el.fecha||'').toString().slice(0,10))+(el.fechaEstimada?' (estimada)':'')+(el.fuenteFecha?' · fuente: '+esc(el.fuenteFecha):'')]);
+if(el.dimensiones&&el.dimensiones.ancho)filas.push(['Dimensiones',el.dimensiones.ancho+' × '+el.dimensiones.alto+' px']);
+if(el.archivoDrive){
+filas.push(['Tamaño',_fmtBytes(el.archivoDrive.tamano)]);
+filas.push(['Tipo MIME',esc(el.archivoDrive.mimeType||'—')]);
+if(el.archivoDrive.creadoDrive)filas.push(['Creado en Drive',esc(String(el.archivoDrive.creadoDrive).slice(0,10))]);
+}
+if(exif.camaraMarca||exif.camaraModelo)filas.push(['Cámara',esc(((exif.camaraMarca||'')+' '+(exif.camaraModelo||'')).trim())]);
+if(exif.gps)filas.push(['Ubicación GPS',exif.gps.lat+', '+exif.gps.lon]);
+if(el.etiquetas&&el.etiquetas.length)filas.push(['Etiquetas',esc(el.etiquetas.join(', '))]);
+if(el.googlePhotosTitle)filas.push(['Título (Google Fotos)',esc(el.googlePhotosTitle)]);
+if(el.googlePhotosDescription)filas.push(['Descripción (Google Fotos)',esc(el.googlePhotosDescription)]);
+if(el.personasEtiquetadasGoogle&&el.personasEtiquetadasGoogle.length)filas.push(['Personas etiquetadas (Google)',esc(el.personasEtiquetadasGoogle.join(', '))]);
+filas.push(['OCR',el.ocrProcesado?('sí, confianza '+Number(el.ocrConfianza||0).toFixed(0)+'%'):'pendiente']);
+var html='<div style="display:flex;justify-content:space-between;align-items:center"><h3>'+esc(el.nombreOriginal||'')+'</h3><button class="btn ghost small" onclick="document.getElementById(\'resultadoExploradorDetalle\').style.display=\'none\'">Cerrar</button></div>';
+html+='<table style="margin-top:8px">'+filas.map(function(f){return '<tr><th style="width:170px">'+f[0]+'</th><td>'+f[1]+'</td></tr>';}).join('')+'</table>';
+if((el.ocrSugerencias&&el.ocrSugerencias.informativas&&el.ocrSugerencias.informativas.length)){
+html+='<div class="note" style="margin-top:10px"><b>💡 Pistas encontradas por el OCR</b><br>'+el.ocrSugerencias.informativas.map(function(t){return esc(t);}).join('<br>')+'</div>';
+}
+if(el.ocrTexto){
+html+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--accent)">Ver texto OCR completo</summary><pre style="white-space:pre-wrap;font-size:11.5px;background:var(--bg);padding:10px;border-radius:8px;margin-top:6px">'+esc(el.ocrTexto)+'</pre></details>';
+}
+html+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)">Ver JSON completo del sidecar</summary><pre style="white-space:pre-wrap;font-size:11px;background:var(--bg);padding:10px;border-radius:8px;margin-top:6px">'+esc(JSON.stringify(el,null,2))+'</pre></details>';
+if(el.driveFileId)html+='<p style="margin-top:10px"><a class="btn small" target="_blank" href="https://drive.google.com/file/d/'+encodeURIComponent(el.driveFileId)+'/view"><i class="fa-brands fa-google-drive"></i> Abrir archivo original en Drive</a></p>';
+det.innerHTML=html;
+det.style.display='block';
+det.scrollIntoView({behavior:'smooth',block:'start'});
+}
+/* ===== Registro de un archivo 100% contra Drive, sin IndexedDB =====
+   Si el archivo YA tenía un sidecar en Drive (por ejemplo, registrado en otra
+   sesión o desde otro navegador), lo carga y lo respeta como punto de partida
+   — nunca lo pisa con una ficha en blanco. Si es la primera vez que se ve,
+   exprime del propio archivo lo máximo posible (EXIF, dimensiones, metadatos
+   de Drive) antes de crear su sidecar. */
+async function registrarArchivoExistenteAutomaticamente(f,pid,nombre,carpetaId){
 var tipo=(f.mimeType||'').indexOf('pdf')>=0?'pdf':
          ((f.mimeType||'').indexOf('image/')===0?'imagen':
          ((f.mimeType||'').indexOf('video/')===0?'video':'otro'));
-var esDocumento=(tipo==='pdf'||tipo==='otro');
-var hash='drive_'+f.id;
-var elemento=await cGet('elementos',hash);
-if(!elemento){
+var esDocumentoPorDefecto=(tipo==='pdf'||tipo==='otro');
+var nombreSidecar=f.name+'.'+f.id+'.json';
+var parentId=carpetaId||(Array.isArray(f.parents)?f.parents[0]:null);
+var sidecarExistente=null;
+try{
+  var sf=await buscarArchivoPorNombreEnCarpeta(nombreSidecar,parentId);
+  if(sf){
+    var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(sf.id)+'?alt=media');
+    if(r.ok)sidecarExistente=JSON.parse(await r.text());
+  }
+}catch(e){console.warn('No se pudo leer el sidecar existente de '+f.name+':',e.message);}
+
+var elemento;
+if(sidecarExistente){
+  // Ya estaba registrado (en Drive): partimos de su sidecar tal cual, sin perder nada.
   elemento={
-    id:hash,nombreOriginal:f.name,md5:f.md5Checksum||null,tipo:tipo,
-    personas:[nombre],otrasPersonasEtiquetadas:[],etiquetas:[],
-    fecha:f.modifiedTime||new Date().toISOString(),fechaEstimada:true,fuenteFecha:'drive',
-    albumesOrigen:['DOCUMENTOS/'+pid],origenesTakeout:[],cajasOrigen:[],cajaId:null,
-    estado:esDocumento?'documento':(tipo==='video'?'video':'fotografia'),
-    motivoDuda:null,tamano:Number(f.size||0),personaAsignadaId:String(pid),
-    miniatura:null,rutaDrive:'DOCUMENTOS/'+pid+'/'+f.name,driveFileId:f.id,
-    googlePhotosMetadata:null,googlePhotosMetadataDisponible:false,
-    googlePhotosDescription:'',googlePhotosTitle:'',googlePhotosUrl:'',googlePhotosJsonOriginal:null,
-    esDocumento:esDocumento,ocrProcesado:false,ocrPendiente:esDocumento,
-    ocrCompletado:false,ocrTexto:'',ocrConfianza:0,ocrHistorial:[],
-    ocrSugerencias:{campos:[],informativas:[]},ocrHallazgos:{},
-    sincronizadoDrive:false
+    nombreOriginal:sidecarExistente.nombreOriginal||f.name,tipo:sidecarExistente.tipo||tipo,
+    estado:sidecarExistente.estado||(esDocumentoPorDefecto?'documento':(tipo==='video'?'video':'fotografia')),
+    esDocumento:typeof sidecarExistente.esDocumento==='boolean'?sidecarExistente.esDocumento:esDocumentoPorDefecto,
+    driveFileId:f.id,rutaDrive:'DOCUMENTOS/'+pid+'/'+f.name,
+    fecha:sidecarExistente.fecha||f.modifiedTime||new Date().toISOString(),
+    fechaEstimada:!!sidecarExistente.fechaEstimada,fuenteFecha:sidecarExistente.fuenteFecha||'drive',
+    personaAsignadaId:String(pid),etiquetas:sidecarExistente.etiquetas||[],
+    albumesOrigen:sidecarExistente.albumOrigen?[sidecarExistente.albumOrigen]:['DOCUMENTOS/'+pid],
+    googlePhotosMetadata:sidecarExistente.googlePhotosMetadata||null,
+    googlePhotosDescription:sidecarExistente.googlePhotosDescription||'',
+    googlePhotosTitle:sidecarExistente.googlePhotosTitle||'',
+    otrasPersonasEtiquetadas:sidecarExistente.personasEtiquetadasGoogle||[],
+    exif:sidecarExistente.exif||{},dimensiones:sidecarExistente.dimensiones||null,
+    archivoDrive:sidecarExistente.archivoDrive||null,
+    ocrProcesado:!!sidecarExistente.ocrProcesado,ocrTexto:sidecarExistente.ocrTexto||'',
+    ocrConfianza:Number(sidecarExistente.ocrConfianza||0),
+    ocrSugerencias:sidecarExistente.ocrSugerencias||{campos:[],informativas:[]},
+    ocrHallazgos:sidecarExistente.ocrHallazgos||{}
   };
 }else{
-  elemento.personaAsignadaId=String(pid);
-  elemento.personas=elemento.personas&&elemento.personas.length?elemento.personas:[nombre];
-  elemento.driveFileId=f.id;
-  elemento.nombreOriginal=f.name;
-  elemento.tipo=tipo;
-  elemento.estado=esDocumento?'documento':(tipo==='video'?'video':'fotografia');
-  elemento.esDocumento=esDocumento;
-  elemento.ocrPendiente=esDocumento&&!elemento.ocrProcesado;
-  elemento.rutaDrive='DOCUMENTOS/'+pid+'/'+f.name;
-  elemento.motivoDuda=null;
-  elemento.sincronizadoDrive=false;
-}
-if(!elemento.miniatura&&(tipo==='imagen'||tipo==='pdf')){
-  try{elemento.miniatura=await obtenerMiniaturaDesdeDrive(f.id);}catch(e){}
+  // Primera vez que se ve este archivo: creamos su ficha exprimiendo del propio
+  // archivo todo lo que se pueda (EXIF, dimensiones, metadatos de Drive).
+  var metaCompletos={exif:{},dimensiones:null,archivoDrive:{tamano:Number(f.size||0),mimeType:f.mimeType||null,md5Checksum:f.md5Checksum||null,creadoDrive:f.createdTime||null,modificadoDrive:f.modifiedTime||null}};
+  if(tipo==='imagen'){
+    try{
+      var blobImg=await descargarArchivoDrive(f.id);
+      metaCompletos=await extraerMetadatosCompletos(blobImg,tipo,{size:f.size,mimeType:f.mimeType,md5Checksum:f.md5Checksum,createdTime:f.createdTime,modifiedTime:f.modifiedTime});
+    }catch(eDesc){console.warn('No se pudo descargar '+f.name+' para extraer EXIF/dimensiones:',eDesc.message);}
+  }
+  elemento={
+    nombreOriginal:f.name,tipo:tipo,estado:esDocumentoPorDefecto?'documento':(tipo==='video'?'video':'fotografia'),
+    esDocumento:esDocumentoPorDefecto,driveFileId:f.id,rutaDrive:'DOCUMENTOS/'+pid+'/'+f.name,
+    fecha:f.modifiedTime||new Date().toISOString(),fechaEstimada:true,fuenteFecha:'drive',
+    personaAsignadaId:String(pid),etiquetas:[],albumesOrigen:['DOCUMENTOS/'+pid],
+    googlePhotosMetadata:null,googlePhotosDescription:'',googlePhotosTitle:'',otrasPersonasEtiquetadas:[],
+    exif:metaCompletos.exif,dimensiones:metaCompletos.dimensiones,archivoDrive:metaCompletos.archivoDrive,
+    ocrProcesado:false,ocrTexto:'',ocrConfianza:0,
+    ocrSugerencias:{campos:[],informativas:[]},ocrHallazgos:{}
+  };
 }
 if(elemento.ocrTexto&&elemento.ocrTexto.trim().length>=20){
   elemento.ocrSugerencias=analizarTextoGenealogico(elemento.ocrTexto,nombre);
   elemento.ocrHallazgos=generarHallazgosOCR(elemento.ocrTexto,elemento.ocrConfianza);
 }
-await cPut('elementos',elemento);
+await guardarSidecarArchivo(elemento,parentId,nombre);
 return elemento;
 }
+/* Repaso de carpeta, 100% contra Drive: se puede pulsar en cualquier momento,
+   desde cualquier navegador, sin que importe qué haya (o no haya) en caché
+   local. Compara los archivos físicos de la carpeta con los sidecars que ya
+   existen (ambos leídos de Drive) y solo crea sidecar para lo que de verdad
+   falta; lo que ya estaba registrado se respeta tal cual. */
 async function analizarDocumentosExistentes(){
 var pid=REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id;
 if(!pid){toast('Escribe el nombre y elige primero a qué persona quieres repasar',true);return;}
@@ -2684,56 +3081,38 @@ try{
 var nombre=REPASO_PERSONA_ACTUAL.nombre;
 if(out)out.innerHTML='<p><b>Repasando automáticamente la carpeta de '+esc(nombre)+'…</b></p>';
 var carpeta=await carpetaDocumentosPersona(pid,nombre);
-var archivos=await listarTodosArchivosDrive("'"+carpeta.id+"' in parents and trashed=false","id,name,mimeType,size,md5Checksum,modifiedTime,parents");
-var locales=await cAll('elementos');
-var idsLocal={};
-locales.forEach(function(x){if(x&&x.driveFileId)idsLocal[String(x.driveFileId)]=x;});
+var archivos=await listarTodosArchivosDrive("'"+carpeta.id+"' in parents and trashed=false","id,name,mimeType,size,md5Checksum,createdTime,modifiedTime,parents");
+var sidecarsYaLeidos=await listarSidecarsDeCarpeta(carpeta.id);
+var idsConSidecar={};
+sidecarsYaLeidos.forEach(function(s){if(s.driveFileId)idsConSidecar[String(s.driveFileId)]=true;});
 var sinRegistrar=archivos.filter(function(f){
 return f.mimeType!=='application/vnd.google-apps.folder'
 &&f.name!==nombreArchivoDocumental(pid)&&f.name!==nombrePersonaJson(pid)
 &&f.name!=='archivo-documental.json'&&f.name!=='_persona.json'
+&&f.name!==String(pid)+'_biografia.json'&&f.name!==String(pid)+'_informe.html'
 &&!/\.google-photos\.json$/i.test(f.name)
-&&!idsLocal[String(f.id)];
+&&!esNombreDeSidecarPropio(f.name)
+&&!idsConSidecar[String(f.id)];
 });
 var actualizados=0;
 for(var i=0;i<sinRegistrar.length;i++){
   if(out)out.innerHTML='<p><b>Registrando automáticamente '+(i+1)+' de '+sinRegistrar.length+'…</b><br><span style="font-size:11px;color:var(--muted)">'+esc(sinRegistrar[i].name)+'</span></p>';
-  await registrarArchivoExistenteAutomaticamente(sinRegistrar[i],String(pid),nombre);
+  await registrarArchivoExistenteAutomaticamente(sinRegistrar[i],String(pid),nombre,carpeta.id);
   actualizados++;
 }
 if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s) automáticamente. Los documentos quedan con OCR pendiente; no se ejecuta OCR durante este repaso.</p>';
-/* Recalcula las sugerencias de OCR de documentos antiguos con el nombre correcto
-   de la persona. Esto repara también registros creados por versiones anteriores. */
-var todos=await cAll('elementos');
-var reparados=0;
-for(var j=0;j<todos.length;j++){
-  var el=todos[j];
-  if(!el||String(el.personaAsignadaId)!==String(pid)||el.esDocumento!==true||!el.ocrTexto)continue;
-  el.ocrSugerencias=analizarTextoGenealogico(el.ocrTexto,nombre);
-  el.ocrHallazgos=generarHallazgosOCR(el.ocrTexto,el.ocrConfianza);
-  await cPut('elementos',el);
-  reparados++;
-}
-/* Una sola escritura del JSON de la persona: evita subir el mismo JSON creciente
-   una vez por archivo y hace el repaso mucho más rápido en carpetas grandes.
-   ADEMÁS: si hay elementos locales de esta persona que nunca se sincronizaron
-   (por ejemplo, registrados en una sesión anterior pero sin conexión a Drive),
-   forzamos la sincronización para que no queden huérfanos. */
-var hayPendientesLocales = todos.some(function(e){
-  return e && String(e.personaAsignadaId)===String(pid) && e.estado!=='descartado' && e.sincronizadoDrive!==true;
-});
-if(actualizados||reparados||hayPendientesLocales){
-  await sincronizarPersona(pid,nombre);
-}
+// _persona.json se reconstruye siempre desde los sidecars de Drive: no hace
+// falta comprobar "pendientes", el resultado es correcto se haga lo que se haga.
+await sincronizarPersona(pid,nombre);
 await actualizarResumenOCRPendiente();
-await renderPendientesSincronizar();
+try{await renderPendientesSincronizar();}catch(e){}
 REPASO_PENDIENTES=[];
 REPASO_DUDAS=[];
-REPASO_CLASIFICADOS=(await cAll('elementos')).filter(function(x){
-  return x&&String(x.personaAsignadaId)===String(pid)&&x.estado!=='descartado'&&x.esDocumento!==true;
-});
+// Releemos los sidecars ya con lo recién registrado, para la lista de "reclasificar".
+var sidecarsFinal=actualizados?await listarSidecarsDeCarpeta(carpeta.id):sidecarsYaLeidos;
+REPASO_CLASIFICADOS=sidecarsFinal.filter(function(s){return s.esDocumento!==true;});
 renderRepasoCarpeta();
-toast('Repaso terminado: '+actualizados+' archivo(s) registrado(s) automáticamente. '+reparados+' OCR antiguo(s) revisado(s).');
+toast('Repaso terminado: '+actualizados+' archivo(s) registrado(s) automáticamente.');
 }catch(err){
 var msgH=mensajeErrorHumano(err.message);
 if(out)out.innerHTML='<p style="color:var(--warn);font-size:12px">No se pudo repasar la carpeta. '+esc(msgH)+'</p>';
@@ -2741,6 +3120,10 @@ toast('No se pudo repasar la carpeta. '+msgH,true);
 }
 }
 
+/* Caché de miniaturas SOLO en memoria de la pestaña (variable JS normal, no
+   IndexedDB): se pierde al recargar sin que eso importe, porque se puede
+   volver a pedir a Drive en cualquier momento. */
+var _miniaturaCacheSesion={};
 function renderRepasoCarpeta(){
 var out=document.getElementById('resultadoAnalisisExistentes');
 if(!out)return;
@@ -2748,26 +3131,41 @@ if(!REPASO_CLASIFICADOS.length){
   out.innerHTML='<p style="color:var(--muted);font-size:12px">La carpeta está al día. Los archivos existentes ya están registrados; los documentos pendientes quedan en la cola de OCR.</p>';
   return;
 }
-var html='<p style="font-size:12px;color:var(--muted);margin-bottom:8px"><b>Los archivos ya no se bloquean esperando una decisión.</b> Las fotos se archivan como fotografía y los PDFs/archivos no fotográficos como documento. Si una fotografía resulta ser un documento, puedes reclasificarla aquí.</p>';
+var html='<p style="font-size:12px;color:var(--muted);margin-bottom:8px"><b>Los archivos ya no se bloquean esperando una decisión.</b> Las fotos se archivan como fotografía y los PDFs/archivos no fotográficos como documento. Si una fotografía resulta ser un documento, puedes reclasificarla aquí y relanzar el OCR aunque ya tenga uno.</p>';
 html+='<h4 style="margin:14px 0 6px">Ya clasificados como foto — si alguno es realmente un documento ('+REPASO_CLASIFICADOS.length+')</h4><div class="duda-grid">';
 html+=REPASO_CLASIFICADOS.map(function(el,idx){
-return '<div class="duda-card">'+(el.miniatura?'<img class="duda-thumb" src="'+el.miniatura+'">':'<div class="duda-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-image" style="font-size:26px"></i></div>')+
-'<div class="duda-meta"><b>'+esc(el.nombreOriginal)+'</b><br>Clasificado como foto</div>'+
-'<div style="margin-top:7px"><button class="btn small" onclick="reclasificarComoDocumento('+idx+')"><i class="fa-solid fa-file"></i> En realidad es documento</button></div></div>';
+var cacheada=_miniaturaCacheSesion[el.driveFileId];
+return '<div class="duda-card">'+(cacheada?'<img class="duda-thumb" id="miniRepaso_'+idx+'" src="'+cacheada+'">':'<div class="duda-thumb" id="miniRepaso_'+idx+'" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-image" style="font-size:26px"></i></div>')+
+'<div class="duda-meta"><b>'+esc(el.nombreOriginal)+'</b><br>Clasificado como foto'+(el.ocrProcesado?'':'')+'</div>'+
+'<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="reclasificarComoDocumento('+idx+')"><i class="fa-solid fa-file"></i> Es documento</button>'+
+(el.ocrProcesado?'<button class="btn ghost small" onclick="relanzarOcrRepaso('+idx+')"><i class="fa-solid fa-rotate"></i> Relanzar OCR</button>':'')+
+'</div></div>';
 }).join('')+'</div>';
 out.innerHTML=html;
+// Carga perezosa de miniaturas que todavía no están en caché de sesión.
+REPASO_CLASIFICADOS.forEach(function(el,idx){
+if(_miniaturaCacheSesion[el.driveFileId])return;
+obtenerMiniaturaDesdeDrive(el.driveFileId).then(function(mini){
+if(!mini)return;
+_miniaturaCacheSesion[el.driveFileId]=mini;
+var img=document.getElementById('miniRepaso_'+idx);
+if(img&&img.tagName==='DIV'){img.outerHTML='<img class="duda-thumb" id="miniRepaso_'+idx+'" src="'+mini+'">';}
+}).catch(function(){});
+});
 }
-/* Guarda al momento en Drive (archivo-documental.json + _persona.json de la persona) la
-   ficha de UN elemento, en vez de dejarla "pendiente de sincronizar". Se usa cuando el
-   usuario actúa sobre un elemento suelto (decidir foto/documento, ejecutar OCR): en esos
-   casos no hay ningún lote grande que proteger de ralentizarse, así que no tiene sentido
-   obligar a una sincronización manual aparte para que el dato quede a salvo y visible en
+/* Guarda al momento en Drive (_persona.json de la persona; el registro completo
+   de este elemento ya vive en su propio sidecar, subido aparte por
+   guardarSidecarArchivo) la ficha de UN elemento, en vez de dejarla "pendiente
+   de sincronizar". Se usa cuando el usuario actúa sobre un elemento suelto
+   (decidir foto/documento, ejecutar OCR): en esos casos no hay ningún lote
+   grande que proteger de ralentizarse, así que no tiene sentido obligar a una
+   sincronización manual aparte para que el dato quede a salvo y visible en
    biografía/informe. Si falla (sin conexión, etc.), el elemento se queda con
    sincronizadoDrive:false y sigue disponible el aviso de "pendientes de sincronizar" del
    Panel como red de seguridad. */
 async function guardarFichaAlMomento(elemento){
 try{
-await guardarBaseDatosDrive(elemento);
+await actualizarPersonaJsonDesdeLocal(elemento);
 elemento.sincronizadoDrive=true;
 await cPut('elementos',elemento);
 return true;
@@ -2780,20 +3178,46 @@ return false;
 }
 async function reclasificarComoDocumento(idx){
 var el=REPASO_CLASIFICADOS[idx];
-if(!el)return;
+if(!el||!REPASO_PERSONA_ACTUAL)return;
+var pid=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
 try{
 el.estado='documento';
 el.esDocumento=true;
-el.ocrPendiente=true;
-el.motivoDuda=null;
-await cPut('elementos',el);
-var guardado=await guardarFichaAlMomento(el);
+var carpeta=await carpetaDocumentosPersona(pid,nombre);
+await guardarSidecarArchivo(el,carpeta.id,nombre);
+await sincronizarPersona(pid,nombre);
 REPASO_CLASIFICADOS.splice(idx,1);
 renderRepasoCarpeta();
 await actualizarResumenOCRPendiente();
-await renderPendientesSincronizar();
-toast(el.nombreOriginal+' pasa a documento, OCR pendiente.'+(guardado?' Ficha guardada en Drive.':' Falta sincronizar el registro (botón en el Panel).'));
+toast(el.nombreOriginal+' pasa a documento, OCR pendiente. Guardado en Drive.');
 }catch(err){toast('No se pudo guardar el cambio de '+el.nombreOriginal+'. '+mensajeErrorHumano(err.message),true);}
+}
+/* Vuelve a pasar el OCR a un documento aunque ya tuviera uno guardado — a
+   petición expresa: el resultado nuevo SIEMPRE sobrescribe al anterior en el
+   sidecar (no se guarda historial, solo importa la última lectura). Disponible
+   en cualquier momento, no solo la primera vez. */
+async function relanzarOcrRepaso(idx){
+var el=REPASO_CLASIFICADOS[idx];
+if(!el||!REPASO_PERSONA_ACTUAL)return;
+var pid=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
+try{
+toast('Relanzando OCR de '+el.nombreOriginal+'… (OCR más profundo)');
+var blob=await descargarArchivoDrive(el.driveFileId);
+var rapido=await extraerTextoOCRConInfo(blob,el.tipo,{rapido:true});
+var ocrInfo=rapido;
+var profundo=await extraerTextoOCRConInfo(blob,el.tipo,{rapido:false});
+if(profundo.text&&(!rapido.text||profundo.confidence>=rapido.confidence||profundo.text.length>rapido.text.length))ocrInfo=profundo;
+el.ocrProcesado=true;
+el.ocrTexto=String(ocrInfo.text||'').slice(0,12000);
+el.ocrConfianza=Number(ocrInfo.confidence||0);
+el.ocrAnalizadoEn=new Date().toISOString();
+el.ocrSugerencias=el.ocrTexto.trim().length>=20?analizarTextoGenealogico(el.ocrTexto,nombre):{campos:[],informativas:[]};
+el.ocrHallazgos=generarHallazgosOCR(el.ocrTexto,el.ocrConfianza);
+var carpeta=await carpetaDocumentosPersona(pid,nombre);
+await guardarSidecarArchivo(el,carpeta.id,nombre);
+await sincronizarPersona(pid,nombre);
+toast('✓ OCR de '+el.nombreOriginal+' actualizado en Drive.');
+}catch(err){toast('No se pudo relanzar el OCR de '+el.nombreOriginal+'. '+mensajeErrorHumano(err.message),true);}
 }
 async function decidirRepasoCarpeta(idx,esDocumento){
 var item=REPASO_PENDIENTES[idx];
@@ -2829,6 +3253,7 @@ elemento.motivoDuda=null;
 elemento.esDocumento=esDocumento;
 elemento.ocrPendiente=esDocumento;
 if(elemento.tipo==='imagen'&&!elemento.miniatura&&f.id){try{elemento.miniatura=await obtenerMiniaturaDesdeDrive(f.id);}catch(e){}}
+await guardarSidecarArchivo(elemento,Array.isArray(f.parents)?f.parents[0]:null,item.personaNombre);
 await cPut('elementos',elemento);
 var guardado=await guardarFichaAlMomento(elemento);
 REPASO_PENDIENTES.splice(idx,1);
@@ -2851,7 +3276,7 @@ var destinoFinal=await carpetaDocumentosPersona(pid,nombre);
 var actual=el.driveFileId?await obtenerArchivoDrive(el.driveFileId):null;
 var padreActual=actual&&Array.isArray(actual.parents)?actual.parents[0]:CFG_REVISION_ID;
 if(el.driveFileId && padreActual && padreActual!==destinoFinal.id){
-  await moverArchivoDrive(el.driveFileId,destinoFinal.id,padreActual);
+  await moverArchivoDriveConSidecar(el,destinoFinal.id,padreActual);
 }
 el.personaAsignadaId=pid;
 if(!el.personas||!el.personas.length)el.personas=[nombre];
@@ -2861,6 +3286,7 @@ el.esDocumento=esDocumento;
 el.ocrPendiente=esDocumento;
 el.rutaDrive=destinoFinal.ruta;
 delete el.errorUbicacion;
+await guardarSidecarArchivo(el,destinoFinal.id,nombre);
 await cPut('elementos',el);
 var guardado=await guardarFichaAlMomento(el);
 REPASO_DUDAS.splice(idx,1);
@@ -3283,8 +3709,9 @@ var actual=await obtenerArchivoDrive(el.driveFileId);
 var padreActual=Array.isArray(actual.parents)?actual.parents[0]:null;
 if(padreActual===destino.id){yaOk++;continue;}
 if(estado)estado.innerHTML='<span class="spinner"></span>Moviendo a '+esc(destino.ruta)+'…';
-await moverArchivoDrive(el.driveFileId,destino.id,padreActual||CFG_REVISION_ID);
+await moverArchivoDriveConSidecar(el,destino.id,padreActual||CFG_REVISION_ID);
 el.rutaDrive=destino.ruta;
+await guardarSidecarArchivo(el,destino.id,(el.personas&&el.personas[0])||null);
 await cPut('elementos',el);
 movidos++;
 }catch(err){errores.push((el.nombreOriginal||el.id)+': '+mensajeErrorHumano(err.message));}
@@ -3293,6 +3720,45 @@ if(fill)fill.style.width='100%';if(estado)estado.textContent='✓ Comprobación 
 setTimeout(function(){if(ov)ov.style.display='none';},900);
 var resumen=movidos+' movido(s) ahora, '+yaOk+' ya estaban en su sitio'+(errores.length?', '+errores.length+' con error':'');
 if(errores.length)alert('Comprobación de ubicación en Drive terminada.\n\n'+resumen+'\n\nErrores concretos:\n\n'+errores.slice(0,25).join('\n')+(errores.length>25?'\n… y '+(errores.length-25)+' más.':''));
+toast(resumen);
+}
+/* Fase 3 del plan de sidecars: genera el JSON individual de todo lo que ya
+   estaba importado antes de esta versión. Es una escritura a Drive POR
+   ARCHIVO, así que con colecciones grandes puede tardar y consumir cuota de
+   la API — de ahí el botón dedicado con progreso y resumen final, en vez de
+   que ocurra como efecto secundario de otra acción. Los fallos individuales
+   no detienen el proceso: se acumulan y se listan al final para poder
+   reintentar solo esos. */
+async function migrarSidecarsExistentes(){
+var todos=await cAll('elementos');
+var candidatos=todos.filter(function(e){return e&&e.driveFileId&&e.personaAsignadaId&&e.estado!=='descartado';});
+if(!candidatos.length){toast('No hay archivos con carpeta de persona que migrar');return;}
+if(!confirm('Se va a generar el JSON individual de '+candidatos.length+' archivo(s) ya importado(s). Es una escritura a Drive por archivo y puede tardar varios minutos.\n\n¿Continuar?'))return;
+var e=_progresoSyncEls();
+if(e.ov)e.ov.style.display='flex';
+var creados=0,errores=[];
+var cacheCarpetas={};
+for(var i=0;i<candidatos.length;i++){
+var el=candidatos[i];
+try{
+if(e.fill)e.fill.style.width=Math.round(i/candidatos.length*100)+'%';
+if(e.cuenta)e.cuenta.textContent=i+' de '+candidatos.length+' elementos';
+if(e.pct)e.pct.textContent=Math.round(i/candidatos.length*100)+' %';
+if(e.archivo)e.archivo.textContent=el.nombreOriginal||'';
+if(e.estado)e.estado.innerHTML='<span class="spinner"></span>Generando JSON individual…';
+var pnom=(el.personas&&el.personas[0])||null;
+var clave=String(el.personaAsignadaId);
+var carpeta=cacheCarpetas[clave];
+if(!carpeta){carpeta=await carpetaDocumentosPersona(el.personaAsignadaId,pnom||('Persona '+el.personaAsignadaId));cacheCarpetas[clave]=carpeta;}
+var ok=await guardarSidecarArchivo(el,carpeta.id,pnom);
+await cPut('elementos',el);
+if(ok)creados++; else errores.push((el.nombreOriginal||el.id)+': '+(el.sidecarError||'no se pudo generar'));
+}catch(err){errores.push((el.nombreOriginal||el.id)+': '+mensajeErrorHumano(err.message));}
+}
+if(e.fill)e.fill.style.width='100%';if(e.estado)e.estado.textContent='✓ Migración terminada';
+setTimeout(function(){if(e.ov)e.ov.style.display='none';},900);
+var resumen=creados+' JSON generado(s) de '+candidatos.length+(errores.length?', '+errores.length+' con error':'');
+if(errores.length)alert('Migración de JSON individuales terminada.\n\n'+resumen+'\n\nErrores concretos:\n\n'+errores.slice(0,25).join('\n')+(errores.length>25?'\n… y '+(errores.length-25)+' más.':''));
 toast(resumen);
 }
 function guardarPalabrasDudas(){
