@@ -125,7 +125,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button data-v="cajas" onclick="sv('cajas')"><i class="fa-solid fa-box-open"></i> Cajas</button>
 <button data-v="analizar" onclick="sv('analizar')"><i class="fa-solid fa-folder-tree"></i> Analizar documentos</button>
 <button data-v="explorador" onclick="sv('explorador')"><i class="fa-solid fa-magnifying-glass"></i> Explorador</button>
-<button data-v="informe" onclick="sv('informe')"><i class="fa-solid fa-file-lines"></i> Informe familiar</button>
+<button data-v="informe" onclick="sv('informe')"><i class="fa-solid fa-table-list"></i> Catálogo</button>
 <button data-v="cfg" onclick="sv('cfg')"><i class="fa-solid fa-gear"></i> Configuración</button>
 </nav>
 </header>
@@ -200,7 +200,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 
 <!-- ===== ANALIZAR DOCUMENTOS (fusiona lo que antes era "Dudas" + "Analizar") ===== -->
 <div class="view" id="vAnalizar">
-<div class="hero"><h1>Analizar documentos</h1><p>Todo el trabajo persona a persona vive aquí: eliges una ficha y pulsas "Repasar carpeta" para que el programa mire, directamente en Drive, la carpeta DOCUMENTOS/&lt;ID&gt; de esa persona. Lo que todavía no tenga su ficha (sidecar) se registra automáticamente — como fotografía si es una imagen o vídeo, como documento si es un PDF u otro formato. Después puedes corregir alguna clasificación, lanzar el OCR de los documentos y, desde aquí mismo, generar su biografía y su informe.</p></div>
+<div class="hero"><h1>Analizar documentos</h1><p>Todo el trabajo persona a persona vive aquí: eliges una ficha y pulsas "Repasar carpeta" para que el programa mire, directamente en Drive, la carpeta DOCUMENTOS/&lt;ID&gt; de esa persona. Lo que todavía no tenga su ficha (sidecar) se registra automáticamente — como fotografía si es una imagen o vídeo, como documento si es un PDF u otro formato. Después puedes corregir alguna clasificación, lanzar el OCR de los documentos y, desde aquí mismo, generar su catálogo.</p></div>
 <div class="card"><h3>1. Elegir persona</h3>
 <div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Elegir persona a analizar</span><input id="inputPersonaRepaso" placeholder="Escribe el nombre..." oninput="buscarPersonaParaRepaso(this.value)" autocomplete="off"></div></div>
 <div id="resultadoBusquedaPersonaRepaso" style="font-size:11px;margin-bottom:8px"></div>
@@ -210,11 +210,11 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <p style="font-size:12px;color:var(--muted);line-height:1.6">Esto SÍ actúa sobre todas las personas a la vez: busca todo lo que en algún momento marcaste como "Es documento" y le pasa el reconocimiento de texto (OCR). En cuanto termina cada documento, su ficha se guarda al momento en Drive (ya no hace falta esperar a sincronizar para que el resultado del OCR quede a salvo). Puede tardar varios minutos si hay muchos documentos pendientes — verás una barra de progreso mientras trabaja.</p>
 <button class="btn ghost" onclick="analizarOCRPendiente()"><i class="fa-solid fa-file-lines"></i> Ejecutar OCR pendiente</button>
 <div id="ocrPendienteResumen" style="margin-top:10px;font-size:12px;color:var(--muted)"></div></div>
-<div class="card"><h3>3. Biografía e informe de esta persona</h3>
-<p style="font-size:12px;color:var(--muted);line-height:1.6">Ambos se generan solo para la persona elegida arriba, con lo que ya está analizado de su carpeta (documentos con su texto OCR y fotografías).</p>
-<button class="btn ghost" onclick="generarBiografiaElegidaRepaso()"><i class="fa-solid fa-feather"></i> Generar biografía</button> <button class="btn ghost" onclick="generarInformeDesdeAnalisis()"><i class="fa-solid fa-file-export"></i> Generar informe de esta persona</button>
-<p style="font-size:11px;color:var(--muted);margin-top:6px">La biografía es un texto breve compuesto por plantillas a partir del árbol y de los documentos/fotos ya analizados (incluye lo que encuentra el OCR) — nunca por una IA que redacte libremente. Cada frase se puede rastrear hasta su fuente. Se guarda como &lt;ID&gt;_biografia.json en la carpeta de la persona. El informe se guarda como &lt;ID&gt;_informe.html en la misma carpeta.</p>
-<div id="resultadoInforme"><p style="color:var(--muted);font-size:12px">Todavía no hay un informe generado.</p></div>
+<div class="card"><h3>3. Catálogo de esta persona</h3>
+<p style="font-size:12px;color:var(--muted);line-height:1.6">Genera una ficha corta por cada archivo de su carpeta (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo.</p>
+<button class="btn ghost" onclick="generarCatalogoElegidaRepaso()"><i class="fa-solid fa-table-list"></i> Generar catálogo de esta persona</button>
+<p style="font-size:11px;color:var(--muted);margin-top:6px">Se guarda como &lt;ID&gt;_catalogo.json en la carpeta de la persona. No editado a mano.</p>
+<div id="resultadoInforme"><p style="color:var(--muted);font-size:12px">Todavía no hay un catálogo generado.</p></div>
 <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
 <button class="btn" onclick="sincronizarPersonaElegidaRepaso()"><i class="fa-solid fa-cloud-arrow-up"></i> Guardar JSON de esta persona</button>
 <p style="font-size:11px;color:var(--muted);margin-top:6px">Este botón solo actúa cuando ya no queda OCR pendiente de esta persona.</p>
@@ -231,10 +231,9 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div class="card" id="resultadoExploradorDetalle" style="display:none"></div>
 </div>
 <div class="view" id="vInforme">
-<div class="hero"><h1>Informe para la familia</h1><p>Aquí queda únicamente el <b>Catálogo general</b>. Los informes individuales se generan desde "Analizar documentos", donde ya está seleccionada la persona y se sigue el flujo completo.</p></div>
-<div id="avisoPendientesInforme" class="note" style="display:none;border-color:var(--warn);background:#fff8ec;margin-bottom:14px"></div>
-<div class="card"><h3><i class="fa-solid fa-table-list"></i> Catálogo general (para exportar)</h3>
-<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Recorre todas las carpetas de DOCUMENTOS/: una fila por archivo con persona, nombre, fecha y contenido — OCR para documentos o descripción/etiquetas para fotografías. Se descarga en formato .csv y no se guarda en Drive.</p>
+<div class="hero"><h1>Catálogo</h1><p>El catálogo de cada persona (&lt;ID&gt;_catalogo.json) se genera desde "Analizar documentos", con la persona ya elegida. Aquí solo se exporta a .csv lo que ya esté guardado en Drive.</p></div>
+<div class="card"><h3><i class="fa-solid fa-file-csv"></i> Exportar catálogo general a CSV</h3>
+<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Recorre todas las carpetas de DOCUMENTOS/ y junta los &lt;ID&gt;_catalogo.json que ya estén guardados (persona, nombre, tipo, fecha y descripción breve) en un único .csv para abrir en Excel, Google Sheets o LibreOffice. Las personas sin catálogo generado todavía no aparecerán — genera primero el suyo desde "Analizar documentos".</p>
 <button class="btn ghost" onclick="descargarCatalogoGeneral()"><i class="fa-solid fa-download"></i> Descargar catálogo general (.csv)</button></div>
 <div class="card" id="resultadoCatalogo"><p style="color:var(--muted);font-size:12px">Todavía no se ha descargado ningún catálogo.</p></div>
 </div>
@@ -370,7 +369,7 @@ function ocultarProgresoGlobal(){
 function toast(m,e){var c=document.getElementById('toastC'),t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;c.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},4000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtBytes(n){if(!n)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function sv(v){['panel','cajas','analizar','explorador','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='informe')renderInformeVista();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
+function sv(v){['panel','cajas','analizar','explorador','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
 
 /* ===== BASE DE DATOS LOCAL (propia, independiente de la de la app de árbol) ===== */
 function oDB(){return new Promise(function(res,rej){var r=indexedDB.open('ArchivoDocumentalFamiliar_v1',1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('cajas'))d.createObjectStore('cajas',{keyPath:'id'});if(!d.objectStoreNames.contains('elementos'))d.createObjectStore('elementos',{keyPath:'id'});if(!d.objectStoreNames.contains('cfg'))d.createObjectStore('cfg',{keyPath:'id'});if(!d.objectStoreNames.contains('pendientes'))d.createObjectStore('pendientes',{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res(db);};r.onerror=function(){rej(r.error);};});}
@@ -589,7 +588,7 @@ return (d.files||[])[0]||null;
    anteriores; si una persona lo tiene de antes, se conserva en Drive sin
    tocarlo, pero no se vuelve a escribir). Lo único que se sigue generando por
    persona es <ID>_persona.json, un resumen derivado de estos sidecars (ver
-   BLOQUE E, más abajo) para que biografía e informe no tengan que abrir cien
+   BLOQUE E, más abajo) para que el catálogo no tenga que abrir cien
    archivos de Drive cada vez. IndexedDB, en el navegador, es solo memoria de
    trabajo de la sesión — se puede vaciar sin perder nada, porque lo que
    cuenta ya está grabado aquí, en Drive.
@@ -737,8 +736,7 @@ async function cargarArchivoDocumentalPersona(personaId,personaNombre){
 }
 /* ===== BLOQUE E: _persona.json =====
    Resumen legible y compacto por persona, pensado para leerse de un vistazo y
-   para que el informe familiar y la biografía (BLOQUEs F y G) no tengan que
-   reconstruir nada: solo lo leen a él. Es el ÚNICO agregado por persona que se
+   para que el catálogo (BLOQUE F) no tenga que reconstruir nada: solo lo lee a él. Es el ÚNICO agregado por persona que se
    guarda en Drive — ya no existe <ID>_archivo-documental.json (v1.1): esa
    información completa (metadatos + OCR de cada archivo) vive ahora en el
    sidecar propio de cada archivo (<nombre>.<idDrive>.json, ver más arriba),
@@ -816,7 +814,7 @@ async function actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD)
    que hace falta ya vive en Drive. */
 function esNombreDeSidecarPropio(nombre){
   // Cualquier .json de la carpeta que no sea uno de los JSON especiales de la
-  // persona (persona, archivo-documental heredado, biografía, google-photos)
+  // persona (persona, archivo-documental heredado, catálogo, google-photos)
   // es el sidecar propio de un archivo. ANTES aquí se exigía que el nombre
   // llevara un ID de Drive largo en medio (<algo>.<idDriveLargo>.json), pero
   // nombreSidecarArchivo()/guardarSidecarArchivo() ya no lo incluyen — usan
@@ -828,7 +826,7 @@ function esNombreDeSidecarPropio(nombre){
   if(/\.google-photos\.json$/i.test(nombre))return false;
   if(/_persona\.json$/i.test(nombre))return false;
   if(/_archivo-documental\.json$/i.test(nombre))return false;
-  if(/_biografia\.json$/i.test(nombre))return false;
+  if(/_catalogo\.json$/i.test(nombre))return false;
   return true;
 }
 async function listarSidecarsDeCarpeta(carpetaId){
@@ -973,206 +971,6 @@ async function sincronizarTodasPendientes(){
   }
   await renderPendientesSincronizar();
   await renderPanel();
-}
-
-/* =====================================================================
-   UTILIDAD DE BIOGRAFÍAS (narración escueta, sin IA generativa)
-   Construida por plantillas fijas, no por un modelo que redacta libremente: cada
-   frase sale de un dato concreto (del árbol o de un documento/foto ya analizado por
-   este programa), con su fuente y su grado de certeza. Nunca se rellenan huecos por
-   inferencia, nunca se fusionan dos fuentes que se contradicen. Se genera a petición,
-   persona por persona — nunca en barrido masivo sobre el árbol entero.
-   Ver informe_diseno_biografias.md para el razonamiento completo.
-   ===================================================================== */
-var MESES_ES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-function formatearFechaArbol(d,m,a){
-  d=parseInt(d,10);m=parseInt(m,10);a=parseInt(a,10);
-  var dOk=!isNaN(d)&&d>=1&&d<=31,mOk=!isNaN(m)&&m>=1&&m<=12,aOk=!isNaN(a)&&a>0;
-  if(dOk&&mOk&&aOk)return d+' de '+MESES_ES[m-1]+' de '+a;
-  if(mOk&&aOk)return MESES_ES[m-1]+' de '+a;
-  if(aOk)return String(a);
-  return '';
-}
-function formatearFechaMatrimonio(txt){
-  // El árbol guarda estas fechas como texto tipo "6/11/1818 0:00:00".
-  if(!txt)return '';
-  var m=String(txt).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if(!m)return '';
-  return formatearFechaArbol(m[1],m[2],m[3]);
-}
-function resumirCamposDocumento(campos){
-  // Agrupa los campos sueltos que detecta el OCR (NACD/NACM/NACA/LUGARNAC/...) en
-  // frases de fecha+lugar legibles, en vez de mostrar los códigos internos tal cual.
-  var mapa={}; (campos||[]).forEach(function(c){mapa[c.campo]=c.valor;});
-  var out=[];
-  var fNac=formatearFechaArbol(mapa.NACD,mapa.NACM,mapa.NACA);
-  if(fNac)out.push('nacimiento: '+fNac+(mapa.LUGARNAC?' en '+mapa.LUGARNAC:''));
-  else if(mapa.LUGARNAC)out.push('lugar de nacimiento: '+mapa.LUGARNAC);
-  var fDef=formatearFechaArbol(mapa.DEFD,mapa.DEFM,mapa.DEFA);
-  if(fDef)out.push('defunción: '+fDef+(mapa.LUGARDEF?' en '+mapa.LUGARDEF:''));
-  else if(mapa.LUGARDEF)out.push('lugar de defunción: '+mapa.LUGARDEF);
-  return out;
-}
-async function generarBiografia(personaId,personaNombre){
-  var personas=await cargarPersonasArbol();
-  var mapa={}; personas.forEach(function(x){mapa[String(x.ID)]=x;});
-  var p=mapa[String(personaId)];
-  var hechos=[],frases=[];
-
-  if(p){
-    var fNac=formatearFechaArbol(p._NACD,p._NACM,p._NACA);
-    if(fNac||p._LUGARNAC){
-      hechos.push({tipo:'nacimiento',valor:fNac||null,lugar:p._LUGARNAC||null,certeza:'confirmado',fuente:{origen:'arbol'}});
-      frases.push('Nació'+(fNac?' el '+fNac:'')+(p._LUGARNAC?' en '+p._LUGARNAC:'')+'.');
-    }else{
-      frases.push('No se ha encontrado fecha ni lugar de nacimiento en el árbol.');
-    }
-    var falleceMarcado=String(p.FALLECIDO)==='1'||p.FALLECIDO===true;
-    var fDef=formatearFechaArbol(p._DEFD,p._DEFM,p._DEFA);
-    if(falleceMarcado&&(fDef||p._LUGARDEF)){
-      hechos.push({tipo:'fallecimiento',valor:fDef||null,lugar:p._LUGARDEF||null,certeza:'confirmado',fuente:{origen:'arbol'}});
-      frases.push('Falleció'+(fDef?' el '+fDef:'')+(p._LUGARDEF?' en '+p._LUGARDEF:'')+'.');
-    }else if(falleceMarcado){
-      frases.push('El árbol la/lo registra como fallecido/a, sin fecha ni lugar conocidos.');
-    }
-
-    var padre=p._PADRE&&mapa[String(p._PADRE)];
-    var madre=p._MADRE&&mapa[String(p._MADRE)];
-    hechos.push({tipo:'filiacion',padre:padre?padre._nombreCompleto:null,madre:madre?madre._nombreCompleto:null,certeza:(padre||madre)?'confirmado':'sin_dato',fuente:{origen:'arbol'}});
-    if(padre)hechos.push({tipo:'padre',valor:padre._nombreCompleto,idPersona:padre.ID,certeza:'confirmado',fuente:{origen:'arbol'}});
-    if(madre)hechos.push({tipo:'madre',valor:madre._nombreCompleto,idPersona:madre.ID,certeza:'confirmado',fuente:{origen:'arbol'}});
-    if(padre&&madre)frases.push('Hijo/a de '+padre._nombreCompleto+' y de '+madre._nombreCompleto+'.');
-    else if(padre)frases.push('Hijo/a de '+padre._nombreCompleto+'.');
-    else if(madre)frases.push('Hijo/a de '+madre._nombreCompleto+'.');
-
-    [['_M1','_MF1','_ML1'],['_M2','_MF2','_ML2']].forEach(function(campos){
-      var idConyuge=p[campos[0]],fechaTxt=p[campos[1]],lugarTxt=p[campos[2]];
-      if(!idConyuge)return;
-      var conyuge=mapa[String(idConyuge)];
-      var nombreConyuge=conyuge?conyuge._nombreCompleto:('persona ID '+idConyuge+' (no encontrada en el árbol actual)');
-      var fechaBoda=formatearFechaMatrimonio(fechaTxt);
-      hechos.push({tipo:'conyuge',valor:nombreConyuge,idPersona:conyuge?conyuge.ID:null,fechaBoda:fechaBoda||null,lugarBoda:lugarTxt||null,certeza:conyuge?'confirmado':'referencia_no_resuelta',fuente:{origen:'arbol'}});
-      frases.push('Se casó con '+nombreConyuge+(fechaBoda?' el '+fechaBoda:'')+(lugarTxt?' en '+lugarTxt:'')+'.');
-    });
-
-    // Hijos: no están en la propia ficha, se obtienen recorriendo el árbol (ya cargado
-    // en memoria) buscando quién tiene a esta persona como PADRE o MADRE.
-    var hijos=personas.filter(function(x){return String(x._PADRE)===String(p.ID)||String(x._MADRE)===String(p.ID);});
-    if(hijos.length){
-      hechos.push({tipo:'hijos',valor:hijos.map(function(h){return h._nombreCompleto;}),cantidad:hijos.length,certeza:'confirmado',fuente:{origen:'arbol (búsqueda inversa)'}});
-      frases.push('Tuvo '+hijos.length+' hijo(s) registrado(s) en el árbol: '+hijos.map(function(h){return h._nombreCompleto;}).join(', ')+'.');
-    }
-
-    if(p._OBSERVACIONES&&p._OBSERVACIONES.trim()){
-      hechos.push({tipo:'observacion_arbol',valor:p._OBSERVACIONES.trim(),certeza:'nota_libre',fuente:{origen:'arbol'}});
-      frases.push('Nota del árbol: "'+p._OBSERVACIONES.trim()+'".');
-    }
-  }else{
-    frases.push('No se ha encontrado esta persona en el árbol genealógico (backup-arbol.json).');
-  }
-
-  // Documentos y fotografías ya analizados por este programa (_persona.json).
-  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
-  var pj=await cargarPersonaJson(carpeta,personaId);
-  var docs=pj?(pj.documentos||[]):[];
-  var fotos=pj?(pj.fotografias||[]):[];
-
-  docs.forEach(function(d){
-    resumirCamposDocumento(d.sugerenciasGenealogicas).forEach(function(txt){
-      hechos.push({tipo:'dato_documento',valor:txt,certeza:'posible',fuente:{origen:'documento',id:d.id,nombre:d.nombre}});
-      frases.push('El documento "'+d.nombre+'" apunta a un posible dato de '+txt+'.');
-    });
-    (d.informativas||[]).forEach(function(inf){
-      hechos.push({tipo:'pista_documento',valor:inf,certeza:'posible',fuente:{origen:'documento',id:d.id,nombre:d.nombre}});
-      frases.push('Según el documento "'+d.nombre+'": '+inf+'.');
-    });
-    /* El informe familiar y la biografía reutilizan exactamente el mismo extracto
-       OCR almacenado en _persona.json. No se vuelve a ejecutar otro OCR ni se usa
-       una fuente paralela. */
-    if(d.extractoTexto&&String(d.extractoTexto).trim().length>=20){
-      hechos.push({tipo:'texto_ocr',valor:d.extractoTexto,certeza:'extraido',fuente:{origen:'ocr',id:d.id,nombre:d.nombre}});
-    }
-  });
-
-  if(fotos.length){
-    var fechasFotos=fotos.map(function(f){return f.fecha;}).filter(Boolean).sort();
-    if(fechasFotos.length){
-      var desde=fechasFotos[0].slice(0,4),hasta=fechasFotos[fechasFotos.length-1].slice(0,4);
-      hechos.push({tipo:'periodo_documentado',valor:desde+'–'+hasta,cantidad:fotos.length,certeza:'confirmado',fuente:{origen:'fotografias'}});
-      frases.push('Hay '+fotos.length+' fotografía(s) suya(s) fechada(s) entre '+desde+' y '+hasta+'.');
-    }
-    // Detalle individual de cada fotografía con sus metadatos (antes solo se contaban).
-    fotos.forEach(function(f){
-      var detalles=[];
-      if(f.fecha){
-        var fechaTxt=f.fecha.slice(0,10);
-        if(f.fechaEstimada) fechaTxt+=' (estimada)';
-        else if(f.fuenteFecha==='exif') fechaTxt+=' (fecha EXIF)';
-        detalles.push(fechaTxt);
-      }
-      var desc=String(f.descripcionGoogleFotos||'').trim();
-      if(desc) detalles.push('descripción: "'+desc+'"');
-      var etiquetas=(f.etiquetas||[]).filter(function(x){return String(x).trim();});
-      if(etiquetas.length) detalles.push('etiquetas: '+etiquetas.join(', '));
-      if(f.personasEtiquetadasGoogle && f.personasEtiquetadasGoogle.length){
-        detalles.push('personas etiquetadas: '+f.personasEtiquetadasGoogle.join(', '));
-      }
-      var album=f.albumOrigen||'';
-      if(album && album!=='DOCUMENTOS/'+personaId) detalles.push('álbum: '+album);
-
-      hechos.push({
-        tipo:'fotografia',
-        nombre:f.nombre,
-        fecha:f.fecha||null,
-        descripcion:desc||null,
-        etiquetas:etiquetas,
-        personasEtiquetadas:f.personasEtiquetadasGoogle||[],
-        albumOrigen:album,
-        certeza:'confirmado',
-        fuente:{origen:'fotografia',id:f.id,nombre:f.nombre}
-      });
-
-      if(detalles.length){
-        frases.push('Fotografía "'+f.nombre+'" — '+detalles.join('; ')+'.');
-      }else{
-        frases.push('Fotografía "'+f.nombre+'" (sin metadatos adicionales).');
-      }
-    });
-  }
-
-  var biografia={
-    version:1,tipo:'biografia-generada',
-    personaId:String(personaId),personaNombre:personaNombre,
-    generado:new Date().toISOString(),
-    narracion:frases.join(' ')||'No se ha encontrado información suficiente para esta persona.',
-    hechos:hechos
-  };
-
-  var blob=new Blob([JSON.stringify(biografia,null,2)],{type:'application/json;charset=utf-8'});
-  var nombreArchivo=String(personaId)+'_biografia.json';
-  var existente=await buscarArchivoPorNombreEnCarpeta(nombreArchivo,carpeta.id);
-  if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
-  else await subirBinarioADrive(nombreArchivo,blob,'application/json',carpeta.id,'Biografía generada automáticamente a partir del árbol y de los documentos de '+personaNombre+'. Sin IA generativa: cada frase sale de un dato con su fuente, marcado como confirmado o posible. No editar a mano.');
-
-  return biografia;
-}
-async function generarBiografiaElegidaRepaso(){
-  if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar la biografía',true);return;}
-  var id=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
-  var e=_progresoSyncEls();
-  if(e.ov)e.ov.style.display='flex';
-  if(e.estado)e.estado.innerHTML='<span class="spinner"></span>Generando biografía de '+esc(nombre)+'…';
-  if(e.archivo)e.archivo.textContent='';if(e.fill)e.fill.style.width='50%';if(e.cuenta)e.cuenta.textContent='';if(e.pct)e.pct.textContent='';
-  try{
-    var bio=await generarBiografia(id,nombre);
-    if(e.fill)e.fill.style.width='100%';if(e.estado)e.estado.textContent='✓ Biografía generada';
-    setTimeout(function(){if(e.ov)e.ov.style.display='none';},700);
-    alert('Biografía de '+nombre+' generada y guardada en DOCUMENTOS/'+id+'/'+id+'_biografia.json\n\n'+bio.narracion);
-    toast('✓ Biografía de '+nombre+' generada y guardada en Drive.');
-  }catch(err){
-    if(e.ov)e.ov.style.display='none';
-    alert('No se pudo generar la biografía de '+nombre+'.\n\n'+mensajeErrorHumano(err.message));
-  }
 }
 
 async function calcularMD5(blob){
@@ -3000,7 +2798,7 @@ var sinRegistrar=archivos.filter(function(f){
 return f.mimeType!=='application/vnd.google-apps.folder'
 &&f.name!==nombreArchivoDocumental(pid)&&f.name!==nombrePersonaJson(pid)
 &&f.name!=='archivo-documental.json'&&f.name!=='_persona.json'
-&&f.name!==String(pid)+'_biografia.json'&&f.name!==String(pid)+'_informe.html'
+&&f.name!==String(pid)+'_catalogo.json'
 &&!/\.google-photos\.json$/i.test(f.name)
 &&!esNombreDeSidecarPropio(f.name)
 &&!idsConSidecar[String(f.id)];
@@ -3583,14 +3381,13 @@ toast('Caché borrada. Recargando…');
 setTimeout(function(){location.reload();},700);
 }catch(err){toast('No se pudo vaciar la caché: '+err.message,true);}
 }
-/* ===== BLOQUE F: INFORME FAMILIAR (leído desde _persona.json) =====
-   El informe ya no reconstruye nada a partir del registro completo: lee
-   directamente el resumen _persona.json de cada persona (BLOQUE E), que es
-   justo lo que hace falta para el informe. Si una persona todavía no tiene
-   _persona.json (ficha antigua sin ningún elemento tocado con el flujo nuevo),
-   se recurre por compatibilidad a archivo-documental.json y solo se listan los
-   elementos ya marcados como documento por el usuario (esDocumento===true). El
-   informe sigue siendo un HTML autocontenido, guardado en Drive para compartirlo. */
+/* ===== BLOQUE F: CATÁLOGO POR PERSONA (leído desde _persona.json) =====
+   Sustituye a la antigua biografía y al informe individual/familiar. Por cada
+   archivo ya analizado de la persona (documento o fotografía) genera una
+   ficha corta — persona, nombre de archivo, tipo, fecha y una descripción
+   breve — nunca el texto OCR completo. Se guarda en Drive como
+   <ID>_catalogo.json, en la misma carpeta que sus demás archivos. No se
+   edita a mano. */
 async function cargarPersonaJson(carpeta,personaId){
   var f=personaId?await buscarConMigracionDeNombre(nombrePersonaJson(personaId),'_persona.json',carpeta.id):await buscarArchivoPorNombreEnCarpeta('_persona.json',carpeta.id);
   if(!f)return null;
@@ -3598,36 +3395,75 @@ async function cargarPersonaJson(carpeta,personaId){
   if(!r.ok)return null;
   try{return JSON.parse(await r.text());}catch(e){return null;}
 }
-async function renderInformeVista(){
-// v06: el aviso de "pendientes de sincronizar" ya no tiene tanto peso como antes —
-// ahora la mayoría de acciones (decidir foto/documento, OCR) guardan su ficha en Drive
-// al momento. Se mantiene como red de seguridad para lo poco que aún pueda quedar
-// pendiente (por ejemplo, si guardarFichaAlMomento falló por falta de conexión).
-var pendientes=await obtenerPersonasPendientesSincronizar();
-var aviso=document.getElementById('avisoPendientesInforme');
-if(!aviso)return;
-if(!pendientes.length){aviso.style.display='none';return;}
-var total=pendientes.reduce(function(s,p){return s+p.count;},0);
-aviso.style.display='block';
-aviso.innerHTML='<i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Hay <b>'+pendientes.length+' persona(s)</b> con '+total+' elemento(s) sin sincronizar todavía — su informe no incluirá esos cambios hasta que los sincronices. <a href="#" onclick="sv(\'panel\');return false;" style="color:var(--accent)">Ir a sincronizar</a>';
+function nombreCatalogoPersonaJson(personaId){return String(personaId)+'_catalogo.json';}
+/* Descripción breve de un documento: prioriza las "informativas" que ya
+   extrae el OCR (frases legibles tipo "Posible padre: X"), y solo si no hay
+   ninguna cae en un extracto corto del texto OCR — nunca el texto completo. */
+function descripcionBreveDocumento(d){
+  var informativas=(d.informativas||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
+  if(informativas.length)return informativas.join(' · ');
+  var texto=String(d.extractoTexto||'').trim();
+  if(texto)return texto.length>150?texto.slice(0,150)+'…':texto;
+  return '';
+}
+/* Descripción breve de una fotografía: descripción de Google Fotos + etiquetas. */
+function descripcionBreveFotografia(f){
+  var partes=[];
+  var desc=String(f.descripcionGoogleFotos||'').trim();
+  if(desc)partes.push(desc);
+  var etiquetas=(f.etiquetas||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
+  if(etiquetas.length)partes.push('Etiquetas: '+etiquetas.join(', '));
+  return partes.join(' · ');
+}
+async function generarCatalogoPersona(personaId,personaNombre){
+  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
+  var pj=await cargarPersonaJson(carpeta,personaId);
+  var docs=pj?(pj.documentos||[]):[];
+  var fotos=pj?(pj.fotografias||[]):[];
+  var entradas=[];
+  docs.forEach(function(d){
+    entradas.push({id:d.driveFileId||null,personaId:String(personaId),persona:personaNombre,nombre:d.nombre||'',tipo:'documento',fecha:d.fecha||null,descripcion:descripcionBreveDocumento(d)});
+  });
+  fotos.forEach(function(f){
+    entradas.push({id:f.driveFileId||null,personaId:String(personaId),persona:personaNombre,nombre:f.nombre||'',tipo:(f.tipo==='video'?'video':'fotografia'),fecha:f.fecha||null,descripcion:descripcionBreveFotografia(f)});
+  });
+  var catalogo={
+    version:1,tipo:'catalogo-persona',
+    personaId:String(personaId),personaNombre:personaNombre,
+    generado:new Date().toISOString(),
+    entradas:entradas
+  };
+  var blob=new Blob([JSON.stringify(catalogo,null,2)],{type:'application/json;charset=utf-8'});
+  var nombreArchivo=nombreCatalogoPersonaJson(personaId);
+  var existente=await buscarArchivoPorNombreEnCarpeta(nombreArchivo,carpeta.id);
+  if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
+  else await subirBinarioADrive(nombreArchivo,blob,'application/json',carpeta.id,'Catálogo de '+personaNombre+': una ficha corta por archivo (persona, nombre, tipo, fecha y descripción breve), sin el texto OCR completo. Generado automáticamente a partir de _persona.json; no editar a mano.');
+  return catalogo;
 }
 /* Llamada desde el botón de "Analizar documentos" — usa la persona ya elegida ahí. */
-async function generarInformeDesdeAnalisis(){
-if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres repasar',true);return;}
-await generarInformePersona(REPASO_PERSONA_ACTUAL.id,REPASO_PERSONA_ACTUAL.nombre,'resultadoInforme');
+async function generarCatalogoElegidaRepaso(){
+  if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar el catálogo',true);return;}
+  var id=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
+  var out=document.getElementById('resultadoInforme');
+  if(out)out.innerHTML='<p><b>Generando el catálogo de '+esc(nombre)+'…</b></p>';
+  try{
+    var cat=await generarCatalogoPersona(id,nombre);
+    if(out)out.innerHTML='<h3>Catálogo de '+esc(nombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(id)+'/'+esc(nombreCatalogoPersonaJson(id))+'. '+cat.entradas.length+' entrada(s).</p>';
+    toast('✓ Catálogo de '+nombre+' generado y guardado en Drive.');
+  }catch(err){
+    var msgHumano=mensajeErrorHumano(err.message);
+    if(out)out.innerHTML='<p style="color:var(--warn)"><b>No se pudo generar el catálogo.</b><br>'+esc(msgHumano)+'</p>';
+    toast(msgHumano,true);
+  }
 }
-/* ===== CATÁLOGO GENERAL (lista plana para exportar) =====
-   A diferencia del informe (que ahora es siempre de UNA persona, ver más abajo), esto es
-   una lista plana de TODOS los archivos — uno por fila — con el nombre del archivo y su
-   contenido (el texto OCR si es un documento; la descripción/etiquetas si es una foto),
-   pensada para volcarse en un catálogo general o en otra herramienta más adelante (por
-   ejemplo, el futuro programa de genealogía). Se descarga directamente a tu ordenador,
-   no se guarda en Drive. Sigue recorriendo TODAS las carpetas de DOCUMENTOS/ a propósito
-   — es la única herramienta de esta pantalla que sí lo hace, porque un catálogo de
-   exportación no tiene sentido si es solo de una persona.
-   Función para escapar un valor en formato CSV (comillas dobles alrededor si el
-   contenido incluye comas, comillas o saltos de línea). Formato entendido por
-   Excel, Google Sheets, LibreOffice y prácticamente cualquier programa de catálogo. */
+/* ===== CATÁLOGO GENERAL (exportar a CSV lo que ya esté guardado en Drive) =====
+   Recorre todas las carpetas de DOCUMENTOS/ y junta los <ID>_catalogo.json que
+   ya estén generados (ver generarCatalogoPersona) en un único .csv, pensado
+   para abrir en Excel, Google Sheets o LibreOffice. No genera catálogos
+   nuevos ni lee sidecar por sidecar: las personas sin <ID>_catalogo.json
+   todavía no aparecen. Se descarga directamente a tu ordenador, no se guarda
+   en Drive. Función para escapar un valor en formato CSV (comillas dobles
+   alrededor si el contenido incluye comas, comillas o saltos de línea). */
 function csvValor(v){
   var s=String(v==null?'':v);
   if(/[",\n\r]/.test(s))s='"'+s.replace(/"/g,'""')+'"';
@@ -3639,39 +3475,23 @@ async function descargarCatalogoGeneral(){
     var raizDocs=await carpetaRaizDOCUMENTOS();
     var subcarpetas=await listarTodosArchivosDrive("'"+raizDocs+"' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'","id,name");
     if(!subcarpetas.length){if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Todavía no hay ninguna carpeta de persona en DOCUMENTOS/. Importa o repasa algo primero.</p>';return;}
-    var personas=await cargarPersonasArbol();
-    var mapaPersonas={}; personas.forEach(function(p){mapaPersonas[String(p.ID)]=p;});
-    var filas=[];
+    var filas=[],personasSinCatalogo=0;
     for(var i=0;i<subcarpetas.length;i++){
       var sc=subcarpetas[i];
-      var p=mapaPersonas[String(sc.name)];
-      var pn=p?p._nombreCompleto:('Persona '+sc.name);
-      if(out)out.innerHTML='<p><b>Leyendo '+(i+1)+' de '+subcarpetas.length+':</b> '+esc(pn)+'…</p>';
-      var carpeta={id:sc.id,ruta:'DOCUMENTOS/'+sc.name+'/'};
-      var arrDocs,arrFotos;
+      if(out)out.innerHTML='<p><b>Leyendo '+(i+1)+' de '+subcarpetas.length+'…</b></p>';
+      var f=await buscarArchivoPorNombreEnCarpeta(nombreCatalogoPersonaJson(sc.name),sc.id);
+      if(!f){personasSinCatalogo++;continue;}
       try{
-        var pj=await cargarPersonaJson(carpeta,sc.name);
-        if(pj){
-          arrDocs=pj.documentos||[]; arrFotos=pj.fotografias||[];
-        }else{
-          var obj=await cargarArchivoDocumentalPersona(sc.name,pn);
-          var full=Object.values(obj.bd.archivos||{}).filter(function(x){return x&&x.estado!=='descartado';});
-          arrDocs=full.filter(function(e){return e.esDocumento===true;}).map(resumirDocumentoParaPersonaJson);
-          arrFotos=full.filter(function(e){return e.esDocumento===false;}).map(resumirFotografiaParaPersonaJson);
-        }
-      }catch(errPersona){console.warn('No se pudo leer la carpeta de '+pn+':',errPersona.message);continue;}
-      arrDocs.forEach(function(e){
-        var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
-        filas.push([sc.name,pn,'Documento',e.nombre||'',e.fecha?e.fecha.slice(0,10):'',e.fechaEstimada?'Sí':'No',e.extractoTexto||'',link]);
-      });
-      arrFotos.forEach(function(e){
-        var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
-        var contenido=[e.descripcionGoogleFotos,(e.personasEtiquetadasGoogle&&e.personasEtiquetadasGoogle.length?'Personas etiquetadas: '+e.personasEtiquetadasGoogle.join(', '):''),(e.etiquetas&&e.etiquetas.length?'Etiquetas: '+e.etiquetas.join(', '):'')].filter(Boolean).join(' · ');
-        filas.push([sc.name,pn,'Fotografía',e.nombre||'',e.fecha?e.fecha.slice(0,10):'',e.fechaEstimada?'Sí':'No',contenido,link]);
-      });
+        var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(f.id)+'?alt=media');
+        if(!r.ok)continue;
+        var cat=JSON.parse(await r.text());
+        (cat.entradas||[]).forEach(function(e){
+          filas.push([cat.personaId||sc.name,cat.personaNombre||'',e.tipo||'',e.nombre||'',e.fecha?String(e.fecha).slice(0,10):'',e.descripcion||'']);
+        });
+      }catch(errLectura){console.warn('Catálogo ilegible en '+sc.name+':',errLectura.message);}
     }
-    if(!filas.length){if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">No se ha encontrado ningún archivo clasificado todavía.</p>';return;}
-    var cabecera=['ID persona','Persona','Tipo','Nombre de archivo','Fecha','Fecha estimada','Contenido','Enlace en Drive'];
+    if(!filas.length){if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Todavía no hay ningún catálogo de persona generado. Genera primero el de cada persona desde "Analizar documentos".</p>';return;}
+    var cabecera=['ID persona','Persona','Tipo','Nombre de archivo','Fecha','Descripción'];
     var csv='\uFEFF'+cabecera.map(csvValor).join(',')+'\r\n'+filas.map(function(f){return f.map(csvValor).join(',');}).join('\r\n');
     var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');
@@ -3679,157 +3499,10 @@ async function descargarCatalogoGeneral(){
     a.download='catalogo_general_'+new Date().toISOString().slice(0,10)+'.csv';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
-    if(out)out.innerHTML='<h3>Catálogo descargado</h3><p style="font-size:12px;color:var(--muted)">'+filas.length+' fila(s) (una por archivo, documentos y fotografías) de '+subcarpetas.length+' persona(s). Se ha descargado a tu ordenador como un archivo .csv — ábrelo con Excel, Google Sheets o LibreOffice para revisarlo o para pasarlo a otra herramienta de catálogo.</p>';
+    var nota=personasSinCatalogo?(' '+personasSinCatalogo+' persona(s) sin catálogo generado todavía no aparecen.'):'';
+    if(out)out.innerHTML='<h3>Catálogo descargado</h3><p style="font-size:12px;color:var(--muted)">'+filas.length+' fila(s) de '+(subcarpetas.length-personasSinCatalogo)+' persona(s) con catálogo generado.'+nota+'</p>';
     toast('Catálogo general descargado: '+filas.length+' fila(s)');
   }catch(e){var msgHumano=mensajeErrorHumano(e.message);if(out)out.innerHTML='<p style="color:var(--warn)"><b>No se pudo generar el catálogo.</b><br>'+esc(msgHumano)+'</p>';toast(msgHumano,true);}
-}
-/* ===== INFORME (v06): SIEMPRE DE UNA PERSONA CONCRETA =====
-   Antes recorría TODAS las subcarpetas de DOCUMENTOS/, una por una, y generaba un único
-   HTML con un bloque por persona — lento y, sobre todo, no era lo que se pedía: un
-   informe para leer sobre UNA persona. Ahora trabaja solo sobre DOCUMENTOS/<ID>/ de la
-   persona que se esté repasando en "Analizar documentos" (REPASO_PERSONA_ACTUAL) y el
-   informe se guarda junto a sus demás archivos, como <ID>_informe.html — no en la carpeta
-   raíz compartida, para que el informe de una persona nunca pise el de otra. */
-async function generarInformePersona(personaId,personaNombre,outputElId){
-  var out=document.getElementById(outputElId||'resultadoInforme');
-  if(out)out.innerHTML='<p><b>Generando el informe de '+esc(personaNombre)+'…</b></p>';
-  try{
-    var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
-    var arrDocs,arrFotos,ocrUtiles;
-    var pj=await cargarPersonaJson(carpeta,personaId);
-    if(pj){
-      arrDocs=pj.documentos||[];
-      arrFotos=pj.fotografias||[];
-      ocrUtiles=arrDocs.filter(function(d){return d.ocrCompletado&&d.extractoTexto&&d.extractoTexto.trim().length>=20;}).length;
-    }else{
-      var obj=await cargarArchivoDocumentalPersona(personaId,personaNombre);
-      var full=Object.values(obj.bd.archivos||{}).filter(function(x){return x&&x.estado!=='descartado';});
-      arrDocs=full.filter(function(e){return e.esDocumento===true;}).map(resumirDocumentoParaPersonaJson);
-      arrFotos=full.filter(function(e){return e.esDocumento===false;}).map(resumirFotografiaParaPersonaJson);
-      ocrUtiles=full.filter(function(e){return e.ocrTexto&&e.ocrTexto.trim().length>=20;}).length;
-    }
-    if((!arrDocs||!arrDocs.length)&&(!arrFotos||!arrFotos.length)){
-      if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Todavía no hay documentos ni fotografías analizados de '+esc(personaNombre)+'. Repasa su carpeta primero desde "Analizar documentos".</p>';
-      return;
-    }
-    arrDocs=arrDocs.slice().sort(function(a,c){return String(a.nombre||'').localeCompare(String(c.nombre||''));});
-    arrFotos=arrFotos.slice().sort(function(a,c){return String(a.fecha||'').localeCompare(String(c.fecha||''));});
-
-    // FIX: se ha quitado la incrustación de miniaturas en base64 (obtenerMiniaturaDesdeDrive).
-    // El informe resultante quedaba roto/en blanco ("no se ve nada"), así que volvemos al
-    // formato anterior: cada fotografía se referencia con su enlace a Drive, sin incrustar
-    // la imagen dentro del HTML.
-    if(out)out.innerHTML='<p><b>Montando el informe de '+esc(personaNombre)+'…</b></p>';
-    var totalArchivos=arrDocs.length+arrFotos.length;
-    var fechasFotos=arrFotos.map(function(f){return f.fecha;}).filter(Boolean).sort();
-    var periodo=fechasFotos.length?fechasFotos[0].slice(0,4)+'–'+fechasFotos[fechasFotos.length-1].slice(0,4):'';
-
-    var css=''
-    +':root{--bg:#FBF7F0;--card:#fff;--text:#3D2C1E;--muted:#9E8E7E;--accent:#C4653A;--green:#5A8A3C;--blue:#2C5F8A;--border:#E8DFD4}'
-    +'*{box-sizing:border-box}body{margin:0;font-family:"Lato",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}'
-    +'.wrap{max-width:920px;margin:0 auto;padding:46px 22px 90px}'
-    +'.hero{text-align:center;padding:10px 10px 34px;border-bottom:3px double var(--accent);margin-bottom:38px}'
-    +'.hero .crest{font-size:26px;color:var(--accent);margin-bottom:12px}'
-    +'.hero h1{font-family:"Cinzel",Georgia,serif;font-weight:700;font-size:clamp(26px,4vw,38px);margin:0 0 8px;letter-spacing:.5px}'
-    +'.hero .subtitle{font-family:"Cinzel",Georgia,serif;color:var(--muted);letter-spacing:3px;text-transform:uppercase;font-size:12px;margin:0 0 16px}'
-    +'.hero .periodo{font-size:13px;color:var(--accent);margin:0 0 4px;font-weight:700}'
-    +'.hero .meta-date{font-size:11.5px;color:var(--muted);margin:0}'
-    +'.stats{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:46px}'
-    +'.stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 24px;min-width:120px;text-align:center;box-shadow:0 1px 3px rgba(61,44,30,.06)}'
-    +'.stat .n{font-family:"Cinzel",Georgia,serif;font-size:24px;color:var(--accent);display:block}'
-    +'.stat .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}'
-    +'h2.section{font-family:"Cinzel",Georgia,serif;font-size:19px;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:10px;margin:48px 0 22px;display:flex;align-items:center;gap:10px}'
-    +'h2.section .ic{color:var(--accent);font-size:16px}'
-    +'.doc-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 4px rgba(61,44,30,.05)}'
-    +'.doc-card h3{font-family:"Cinzel",Georgia,serif;font-size:15.5px;margin:0 0 8px;color:var(--text)}'
-    +'.doc-meta{font-size:11px;color:var(--muted);margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap}'
-    +'.doc-meta span{background:#f5efe7;padding:3px 9px;border-radius:20px}'
-    +'.doc-link{margin:6px 0}.doc-link a{color:var(--blue);text-decoration:none;font-size:11.5px}.doc-link a:hover{text-decoration:underline}'
-    +'.desc-orig{font-size:12px;color:var(--text);margin:8px 0;font-style:italic}'
-    +'.pistas{background:#eef6ea;border:1px solid #cfe3c7;color:#3f5f2c;padding:12px 14px;border-radius:10px;margin:10px 0;font-size:12px;line-height:1.6}'
-    +'.pistas b{display:block;margin-bottom:4px;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}'
-    +'.hall{background:#f8efe5;padding:12px 14px;border-radius:10px;margin:10px 0}'
-    +'.hall b{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}'
-    +'.hall pre{white-space:pre-wrap;font-size:11.5px;margin:0;font-family:inherit}'
-    +'.ocr-box{margin-top:10px}.ocr-box summary{cursor:pointer;font-size:12px;color:var(--accent);font-weight:700;list-style:none;user-select:none}'
-    +'.ocr-box summary::-webkit-details-marker{display:none}.ocr-box summary:before{content:"▸  "}.ocr-box[open] summary:before{content:"▾  "}'
-    +'.ocr-text{white-space:pre-wrap;background:#f5efe7;padding:14px 16px;border-radius:10px;font-size:12.5px;margin-top:10px;line-height:1.65;max-height:420px;overflow:auto}'
-    +'.foto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}'
-    +'.foto-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(61,44,30,.05)}'
-    +'.foto-card .ph{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#f0e9de}'
-    +'.foto-card .ph-empty{width:100%;aspect-ratio:4/3;background:#f0e9de;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:24px}'
-    +'.foto-info{padding:10px 12px}.foto-info b{font-size:12px;display:block;margin-bottom:4px;word-break:break-word}'
-    +'.foto-info .fmeta{font-size:10.5px;color:var(--muted);line-height:1.6}'
-    +'.foto-info a{font-size:10.5px;color:var(--blue);text-decoration:none}.foto-info a:hover{text-decoration:underline}'
-    +'footer.pie{text-align:center;margin-top:64px;padding-top:22px;border-top:1px solid var(--border);font-size:10.5px;color:var(--muted)}'
-    +'@media print{body{background:#fff}.doc-card,.stat,.foto-card{box-shadow:none}}';
-
-    var html='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    +'<title>'+esc(personaNombre)+' — Archivo documental familiar</title>'
-    +'<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">'
-    +'<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">'
-    +'<style>'+css+'</style></head><body><div class="wrap">'
-    +'<div class="hero"><div class="crest"><i class="fa-solid fa-scroll"></i></div>'
-    +'<h1>'+esc(personaNombre)+'</h1>'
-    +'<p class="subtitle">Archivo documental familiar</p>'
-    +(periodo?'<p class="periodo">'+esc(periodo)+'</p>':'')
-    +'<p class="meta-date">Informe generado el '+esc(new Date().toLocaleString('es-ES'))+'</p></div>'
-    +'<div class="stats">'
-    +'<div class="stat"><span class="n">'+totalArchivos+'</span><span class="l">Archivos</span></div>'
-    +'<div class="stat"><span class="n">'+arrDocs.length+'</span><span class="l">Documentos</span></div>'
-    +'<div class="stat"><span class="n">'+arrFotos.length+'</span><span class="l">Fotografías</span></div>'
-    +'<div class="stat"><span class="n">'+ocrUtiles+'</span><span class="l">Con OCR útil</span></div>'
-    +'</div>';
-
-    if(arrDocs.length){
-      html+='<h2 class="section"><i class="fa-solid fa-file-lines ic"></i> Documentos ('+arrDocs.length+')</h2>';
-      arrDocs.forEach(function(e){
-        var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
-        html+='<div class="doc-card"><h3>'+esc(e.nombre||'Documento')+'</h3>'
-        +'<div class="doc-meta">'
-        +'<span>OCR '+Number(e.ocrConfianza||0).toFixed(0)+'%</span>'
-        +(e.fecha?'<span>'+esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (estimada)':'')+'</span>':'')
-        +(e.albumOrigen?'<span>álbum: '+esc(e.albumOrigen)+'</span>':'')
-        +'</div>'
-        +(link?'<div class="doc-link"><a href="'+link+'" target="_blank"><i class="fa-brands fa-google-drive"></i> Abrir archivo en Google Drive</a></div>':'')
-        +(e.descripcionGoogleFotos?'<p class="desc-orig">"'+esc(e.descripcionGoogleFotos)+'"</p>':'')
-        +(e.informativas&&e.informativas.length?'<div class="pistas"><b>💡 Pistas encontradas por el OCR</b>'+e.informativas.map(function(t){return esc(t);}).join('<br>')+'</div>':'')
-        +(e.hallazgos&&Object.keys(e.hallazgos).length?'<div class="hall"><b>Hallazgos</b><pre>'+esc(JSON.stringify(e.hallazgos,null,2))+'</pre></div>':'')
-        +(e.extractoTexto?'<details class="ocr-box"><summary>Ver texto OCR completo</summary><div class="ocr-text">'+esc(e.extractoTexto)+'</div></details>':'')
-        +'</div>';
-      });
-    }
-    if(arrFotos.length){
-      html+='<h2 class="section"><i class="fa-solid fa-images ic"></i> Fotografías ('+arrFotos.length+')</h2><div class="foto-grid">';
-      arrFotos.forEach(function(e){
-        var link=e.driveFileId?'https://drive.google.com/file/d/'+encodeURIComponent(e.driveFileId)+'/view':'';
-        var fechaTxt=e.fecha?esc(e.fecha.slice(0,10))+(e.fechaEstimada?' (est.)':(e.fuenteFecha==='exif'?' (EXIF)':'')):'';
-        html+='<div class="foto-card">'
-        +'<div class="ph-empty"><i class="fa-solid fa-'+(e.tipo==='video'?'video':'image')+'"></i></div>'
-        +'<div class="foto-info"><b>'+esc(e.nombre||'')+'</b>'
-        +'<div class="fmeta">'+(fechaTxt?fechaTxt+'<br>':'')
-        +(e.descripcionGoogleFotos?esc(e.descripcionGoogleFotos)+'<br>':'')
-        +(e.personasEtiquetadasGoogle&&e.personasEtiquetadasGoogle.length?'<i class="fa-solid fa-user"></i> '+esc(e.personasEtiquetadasGoogle.join(', '))+'<br>':'')
-        +(link?'<a href="'+link+'" target="_blank">Ver en Drive</a>':'')
-        +'</div></div></div>';
-      });
-      html+='</div>';
-    }
-    html+='<footer class="pie">Informe generado automáticamente por el Archivo documental familiar a partir del árbol y de los documentos/fotografías analizados de '+esc(personaNombre)+'. No editado a mano.</footer>';
-    html+='</div></body></html>';
-
-    var blob=new Blob([html],{type:'text/html;charset=utf-8'});
-    var nombreInforme=String(personaId)+'_informe.html';
-    var f=await buscarArchivoPorNombreEnCarpeta(nombreInforme,carpeta.id);
-    var up=f?await actualizarBinarioADrive(f.id,blob,'text/html'):await subirBinarioADrive(nombreInforme,blob,'text/html',carpeta.id,'Informe individual de '+personaNombre+', generado a partir de sus documentos y fotografías analizados.');
-    var linkDrive='https://drive.google.com/file/d/'+up.id+'/view';
-    if(out)out.innerHTML='<h3>Informe de '+esc(personaNombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(personaId)+'/'+esc(nombreInforme)+'. '+arrDocs.length+' documento(s), '+arrFotos.length+' fotografía(s), '+ocrUtiles+' con OCR útil.</p><a class="btn" target="_blank" href="'+linkDrive+'">Abrir informe</a>';
-    toast('Informe de '+personaNombre+' generado y guardado en Drive');
-  }catch(e){
-    var msgHumano=mensajeErrorHumano(e.message);
-    if(out)out.innerHTML='<p style="color:var(--warn)"><b>No se pudo generar el informe.</b><br>'+esc(msgHumano)+'</p>';
-    toast(msgHumano,true);
-  }
 }
 /* ===== INICIO ===== */
 document.addEventListener('DOMContentLoaded',function(){
