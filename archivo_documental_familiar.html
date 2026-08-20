@@ -145,7 +145,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <li><b>Ve a la pestaña Cajas</b> y pulsa "Procesar ahora" en cada caja que esté lista — copiará cada foto y documento a la carpeta de la persona que le corresponda.</li>
 <li><b>Ve a Analizar documentos</b> y elige la persona — el programa repasa su carpeta y registra automáticamente los archivos que ya estuvieran allí. Los PDFs y documentos quedan preparados para OCR y las fotografías no pasan por OCR.</li>
 <li><b>Ejecuta el OCR pendiente</b> — cuando quieras, lanza el OCR de los documentos. Al terminar cada documento, su ficha queda guardada con el texto y los hallazgos.</li>
-<li><b>Genera el catálogo al final</b> — cuando ya no quede OCR pendiente para la persona elegida, pulsa "Generar catálogo de esta persona" al final del flujo.</li>
+<li><b>Genera el catálogo cuando quieras</b> — pulsa "Generar catálogo de esta persona" al final del flujo; no hace falta esperar a que termine el OCR.</li>
 </ol>
 </div>
 <div class="card" id="cardPendientesSync" style="display:none;border-color:var(--accent)">
@@ -207,7 +207,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button class="btn ghost" onclick="analizarOCRPendiente()"><i class="fa-solid fa-file-lines"></i> Ejecutar OCR pendiente</button>
 <div id="ocrPendienteResumen" style="margin-top:10px;font-size:12px;color:var(--muted)"></div></div>
 <div class="card"><h3>3. Catálogo de esta persona</h3>
-<p style="font-size:12px;color:var(--muted);line-height:1.6">Genera una ficha corta por cada archivo de su carpeta (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo. Comprueba antes que no quede OCR pendiente de esta persona; si queda, avisa y no genera nada.</p>
+<p style="font-size:12px;color:var(--muted);line-height:1.6">Genera una ficha corta por cada archivo de su carpeta (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo.</p>
 <button class="btn" onclick="generarCatalogoElegidaRepaso()"><i class="fa-solid fa-table-list"></i> Generar catálogo de esta persona</button>
 <p style="font-size:11px;color:var(--muted);margin-top:6px">Se guarda como &lt;ID&gt;_catalogo.json en la carpeta de la persona. No editado a mano.</p>
 <div id="resultadoInforme"><p style="color:var(--muted);font-size:12px">Todavía no hay un catálogo generado.</p></div>
@@ -3440,16 +3440,8 @@ async function generarCatalogoElegidaRepaso(){
   if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar el catálogo',true);return;}
   var id=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
   var out=document.getElementById('resultadoInforme');
-  if(out)out.innerHTML='<p><b>Comprobando el OCR pendiente de '+esc(nombre)+'…</b></p>';
   try{
     var carpeta=await carpetaDocumentosPersona(id,nombre);
-    var sidecars=await listarSidecarsDeCarpeta(carpeta.id);
-    var pendientes=sidecars.filter(function(s){return s&&s.esDocumento===true&&!s.ocrProcesado;});
-    if(pendientes.length){
-      if(out)out.innerHTML='<p style="color:var(--warn);font-size:12px">Primero termina el OCR de '+pendientes.length+' documento(s) de '+esc(nombre)+' (paso 2, «Ejecutar OCR pendiente»).</p>';
-      toast('Primero termina el OCR de '+pendientes.length+' documento(s) de '+nombre+'.',true);
-      return;
-    }
     if(out)out.innerHTML='<p><b>Generando el catálogo de '+esc(nombre)+'…</b></p>';
     var cat=await actualizarCatalogoPersona(id,nombre,carpeta);
     if(out)out.innerHTML='<h3>Catálogo de '+esc(nombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(id)+'/'+esc(nombreCatalogoPersona(id))+'. '+cat.entradas.length+' entrada(s).</p>';
