@@ -125,7 +125,6 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button data-v="cajas" onclick="sv('cajas')"><i class="fa-solid fa-box-open"></i> Cajas</button>
 <button data-v="analizar" onclick="sv('analizar')"><i class="fa-solid fa-folder-tree"></i> Analizar documentos</button>
 <button data-v="explorador" onclick="sv('explorador')"><i class="fa-solid fa-magnifying-glass"></i> Explorador</button>
-<button data-v="informe" onclick="sv('informe')"><i class="fa-solid fa-table-list"></i> Catálogo</button>
 <button data-v="cfg" onclick="sv('cfg')"><i class="fa-solid fa-gear"></i> Configuración</button>
 </nav>
 </header>
@@ -149,7 +148,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <li><b>Ve a la pestaña Cajas</b> y pulsa "Procesar ahora" en cada caja que esté lista — copiará cada foto y documento a la carpeta de la persona que le corresponda.</li>
 <li><b>Ve a Analizar documentos</b> y elige la persona — el programa repasa su carpeta y registra automáticamente los archivos que ya estuvieran allí. Los PDFs y documentos quedan preparados para OCR y las fotografías no pasan por OCR.</li>
 <li><b>Ejecuta el OCR pendiente</b> — cuando quieras, lanza el OCR de los documentos. Al terminar cada documento, su ficha queda guardada con el texto y los hallazgos.</li>
-<li><b>Guarda el JSON al final</b> — cuando ya no quede OCR pendiente para la persona elegida, pulsa "Guardar JSON de esta persona" al final del flujo.</li>
+<li><b>Genera el catálogo al final</b> — cuando ya no quede OCR pendiente para la persona elegida, pulsa "Generar catálogo de esta persona" al final del flujo.</li>
 </ol>
 </div>
 <div class="card" id="cardPendientesSync" style="display:none;border-color:var(--accent)">
@@ -211,14 +210,10 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button class="btn ghost" onclick="analizarOCRPendiente()"><i class="fa-solid fa-file-lines"></i> Ejecutar OCR pendiente</button>
 <div id="ocrPendienteResumen" style="margin-top:10px;font-size:12px;color:var(--muted)"></div></div>
 <div class="card"><h3>3. Catálogo de esta persona</h3>
-<p style="font-size:12px;color:var(--muted);line-height:1.6">Genera una ficha corta por cada archivo de su carpeta (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo.</p>
-<button class="btn ghost" onclick="generarCatalogoElegidaRepaso()"><i class="fa-solid fa-table-list"></i> Generar catálogo de esta persona</button>
+<p style="font-size:12px;color:var(--muted);line-height:1.6">Genera una ficha corta por cada archivo de su carpeta (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo. Comprueba antes que no quede OCR pendiente de esta persona; si queda, avisa y no genera nada.</p>
+<button class="btn" onclick="generarCatalogoElegidaRepaso()"><i class="fa-solid fa-table-list"></i> Generar catálogo de esta persona</button>
 <p style="font-size:11px;color:var(--muted);margin-top:6px">Se guarda como &lt;ID&gt;_catalogo.json en la carpeta de la persona. No editado a mano.</p>
 <div id="resultadoInforme"><p style="color:var(--muted);font-size:12px">Todavía no hay un catálogo generado.</p></div>
-<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-<button class="btn" onclick="sincronizarPersonaElegidaRepaso()"><i class="fa-solid fa-cloud-arrow-up"></i> Guardar JSON de esta persona</button>
-<p style="font-size:11px;color:var(--muted);margin-top:6px">Este botón solo actúa cuando ya no queda OCR pendiente de esta persona.</p>
-</div>
 </div>
 </div>
 <div class="view" id="vExplorador">
@@ -229,13 +224,6 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 </div>
 <div class="card" id="resultadoExploradorLista"><p style="color:var(--muted);font-size:12px">Elige una persona para ver los archivos de su carpeta.</p></div>
 <div class="card" id="resultadoExploradorDetalle" style="display:none"></div>
-</div>
-<div class="view" id="vInforme">
-<div class="hero"><h1>Catálogo</h1><p>El catálogo de cada persona (&lt;ID&gt;_catalogo.json) se genera desde "Analizar documentos", con la persona ya elegida. Aquí solo se exporta a .csv lo que ya esté guardado en Drive.</p></div>
-<div class="card"><h3><i class="fa-solid fa-file-csv"></i> Exportar catálogo general a CSV</h3>
-<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Recorre todas las carpetas de DOCUMENTOS/ y junta los &lt;ID&gt;_catalogo.json que ya estén guardados (persona, nombre, tipo, fecha y descripción breve) en un único .csv para abrir en Excel, Google Sheets o LibreOffice. Las personas sin catálogo generado todavía no aparecerán — genera primero el suyo desde "Analizar documentos".</p>
-<button class="btn ghost" onclick="descargarCatalogoGeneral()"><i class="fa-solid fa-download"></i> Descargar catálogo general (.csv)</button></div>
-<div class="card" id="resultadoCatalogo"><p style="color:var(--muted);font-size:12px">Todavía no se ha descargado ningún catálogo.</p></div>
 </div>
 <div class="view" id="vCfg">
 <div class="hero"><h1>Configuración</h1><p>Solo hace falta revisar esto una vez, la primera vez que uses el programa (o si algo deja de conectar). Los valores de esta instalación ya vienen rellenos por defecto; solo tendrías que tocarlos si cambias de carpeta de Drive o de proyecto de Google.</p></div>
@@ -277,7 +265,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 </div>
 <div class="card" style="border-color:var(--warn)">
 <h3><i class="fa-solid fa-broom"></i> Mantenimiento</h3>
-<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Borra únicamente los datos que este programa guarda en este navegador (cajas detectadas, elementos importados y esta configuración de Drive/OCR). <b>No borra nada en Google Drive</b>: los sidecars, los <code>_persona.json</code> y los archivos ya subidos no se tocan, y no afecta a otras aplicaciones (por ejemplo, el árbol genealógico usa su propia base de datos aparte).</p>
+<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Borra únicamente los datos que este programa guarda en este navegador (cajas detectadas, elementos importados y esta configuración de Drive/OCR). <b>No borra nada en Google Drive</b>: los sidecars, los <code>_catalogo.json</code> y los archivos ya subidos no se tocan, y no afecta a otras aplicaciones (por ejemplo, el árbol genealógico usa su propia base de datos aparte).</p>
 <button class="btn ghost small" onclick="limpiarCacheDelPrograma()" style="border-color:var(--warn);color:var(--warn)"><i class="fa-solid fa-trash-can"></i> Vaciar caché de este programa</button>
 <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
 <h4 style="margin:0 0 6px">Comprobar y corregir ubicación de archivos en Drive</h4>
@@ -369,7 +357,7 @@ function ocultarProgresoGlobal(){
 function toast(m,e){var c=document.getElementById('toastC'),t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;c.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},4000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtBytes(n){if(!n)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function sv(v){['panel','cajas','analizar','explorador','informe','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
+function sv(v){['panel','cajas','analizar','explorador','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
 
 /* ===== BASE DE DATOS LOCAL (propia, independiente de la de la app de árbol) ===== */
 function oDB(){return new Promise(function(res,rej){var r=indexedDB.open('ArchivoDocumentalFamiliar_v1',1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('cajas'))d.createObjectStore('cajas',{keyPath:'id'});if(!d.objectStoreNames.contains('elementos'))d.createObjectStore('elementos',{keyPath:'id'});if(!d.objectStoreNames.contains('cfg'))d.createObjectStore('cfg',{keyPath:'id'});if(!d.objectStoreNames.contains('pendientes'))d.createObjectStore('pendientes',{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res(db);};r.onerror=function(){rej(r.error);};});}
@@ -472,7 +460,7 @@ opts=opts||{};opts.headers=opts.headers||{};
 /* ===== BLOQUE: reintento automático centralizado =====
    Antes, solo la descarga de partes ZIP reintentaba ante fallos pasajeros de Drive
    (cuota superada, error de servidor); el resto de operaciones (subir, mover, crear
-   carpetas, guardar _persona.json...) fallaban a la primera. Ahora esta lógica vive
+   carpetas, guardar el catálogo...) fallaban a la primera. Ahora esta lógica vive
    aquí, en el único punto por el que pasa TODA petición a Drive, así que se aplica
    automáticamente a cualquier llamada, sin tener que repetirla en cada función. */
 if(!tokenDriveValido())await conectarGoogleDrive();
@@ -586,10 +574,10 @@ return (d.files||[])[0]||null;
    y el ÚNICO sitio donde queda grabado el registro completo de cada archivo:
    ya no se genera <ID>_archivo-documental.json (existía en versiones
    anteriores; si una persona lo tiene de antes, se conserva en Drive sin
-   tocarlo, pero no se vuelve a escribir). Lo único que se sigue generando por
-   persona es <ID>_persona.json, un resumen derivado de estos sidecars (ver
-   BLOQUE E, más abajo) para que el catálogo no tenga que abrir cien
-   archivos de Drive cada vez. IndexedDB, en el navegador, es solo memoria de
+   tocarlo, pero no se vuelve a escribir). Lo único que se genera por persona
+   es <ID>_catalogo.json (ver BLOQUE E, más abajo), construido directamente
+   leyendo estos sidecars cada vez — sin ningún JSON intermedio de persona
+   por el medio. IndexedDB, en el navegador, es solo memoria de
    trabajo de la sesión — se puede vaciar sin perder nada, porque lo que
    cuenta ya está grabado aquí, en Drive.
    Nombre del sidecar: <nombreArchivo>.<idDrive>.json — se incluye el ID de
@@ -703,13 +691,12 @@ async function cargarBaseDatosDrive(){
   // v1.0: ya no existe fotografias.json. Se conserva esta función solo por compatibilidad interna.
   return {version:2,actualizado:new Date().toISOString(),personas:{}};
 }
-/* Los nombres de archivo empiezan por el ID de la persona (p.ej. "1252_persona.json")
+/* Los nombres de archivo empiezan por el ID de la persona (p.ej. "1252_catalogo.json")
    para poder distinguir a quién pertenece cada uno si se descargan varios desde Drive
-   a la misma carpeta del ordenador — antes todos se llamaban igual ("_persona.json"),
-   así que al bajar el de dos personas se pisaban entre sí o había que abrir cada uno
-   para saber de quién era. */
+   a la misma carpeta del ordenador — antes todos se llamaban igual, así que al bajar
+   el de dos personas se pisaban entre sí o había que abrir cada uno para saber de
+   quién era. */
 function nombreArchivoDocumental(personaId){return String(personaId)+'_archivo-documental.json';}
-function nombrePersonaJson(personaId){return String(personaId)+'_persona.json';}
 /* Migración automática y silenciosa: si el archivo ya existía con el nombre antiguo
    (sin el ID delante), se renombra en el sitio — mismo archivo, mismo historial de
    Drive, solo cambia el nombre — en vez de crear uno nuevo y dejar duplicados. */
@@ -734,97 +721,25 @@ async function cargarArchivoDocumentalPersona(personaId,personaNombre){
   var bd={}; try{bd=JSON.parse(await r.text())||{};}catch(e){throw new Error(nombreNuevo+' no contiene JSON válido');}
   if(!bd.archivos)bd.archivos={}; return {file:f,carpeta:carpeta,bd:bd};
 }
-/* ===== BLOQUE E: _persona.json =====
-   Resumen legible y compacto por persona, pensado para leerse de un vistazo y
-   para que el catálogo (BLOQUE F) no tenga que reconstruir nada: solo lo lee a él. Es el ÚNICO agregado por persona que se
-   guarda en Drive — ya no existe <ID>_archivo-documental.json (v1.1): esa
-   información completa (metadatos + OCR de cada archivo) vive ahora en el
-   sidecar propio de cada archivo (<nombre>.<idDrive>.json, ver más arriba),
-   que es la fuente de verdad. _persona.json se reconstruye cada vez a partir
-   de lo que hay en el navegador (IndexedDB) — que a su vez se ha ido llenando
-   leyendo los sidecars de Drive —, no de ningún archivo intermedio en Drive.
-   No se edita a mano. */
-/* Resumen de un DOCUMENTO (esDocumento===true) para _persona.json. Antes se cortaba el
-   texto OCR a 300 caracteres y se descartaban las "informativas" (las pistas en frase,
-   tipo "Posible padre: X"), que son justo lo más legible para un informe familiar. Ahora
-   se guarda el texto OCR completo (ya viene acotado a ~12.000 caracteres desde el propio
-   OCR) y también las informativas, además de metadatos de contexto. */
-function resumirDocumentoParaPersonaJson(r){
-  return{
-    id:r.id,nombre:r.nombreOriginal,tipo:r.tipo,fecha:r.fecha,fechaEstimada:!!r.fechaEstimada,fuenteFecha:r.fuenteFecha||null,
-    driveFileId:r.driveFileId||null,etiquetas:r.etiquetas||[],albumOrigen:(r.albumesOrigen&&r.albumesOrigen[0])||'',
-    tituloGoogleFotos:r.googlePhotosTitle||'',descripcionGoogleFotos:r.googlePhotosDescription||'',
-    ocrCompletado:!!r.ocrProcesado,ocrConfianza:Number(r.ocrConfianza||0),
-    extractoTexto:r.ocrTexto||'',
-    sugerenciasGenealogicas:(r.ocrSugerencias&&r.ocrSugerencias.campos)||[],
-    informativas:(r.ocrSugerencias&&r.ocrSugerencias.informativas)||[],
-    hallazgos:r.ocrHallazgos||{}
-  };
-}
-// Se mantiene el nombre anterior por compatibilidad con el resto del código.
-/* Resumen de una FOTOGRAFÍA (esDocumento===false) para _persona.json. Antes solo se
-   contaba el número de fotos y ni una salía nombrada. Ahora cada foto queda listada
-   (nombre, fecha, enlace a Drive y las personas que Google Fotos etiquetó, si las hay) —
-   sin OCR porque a las fotos, por definición, nunca se les aplica. */
-function resumirFotografiaParaPersonaJson(r){
-  var personasGoogle=[];
-  if(r.googlePhotosMetadata&&Array.isArray(r.googlePhotosMetadata.people)){
-    personasGoogle=r.googlePhotosMetadata.people.map(function(p){return p&&p.name?p.name:'';}).filter(Boolean);
-  }
-  return{
-    id:r.id,nombre:r.nombreOriginal,tipo:r.tipo,fecha:r.fecha,fechaEstimada:!!r.fechaEstimada,fuenteFecha:r.fuenteFecha||null,
-    driveFileId:r.driveFileId||null,etiquetas:r.etiquetas||[],albumOrigen:(r.albumesOrigen&&r.albumesOrigen[0])||'',
-    descripcionGoogleFotos:r.googlePhotosDescription||'',personasEtiquetadasGoogle:personasGoogle
-  };
-}
-async function actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD){
-  // Admite tanto un diccionario {id:elemento} (uso antiguo, IndexedDB) como un array
-  // plano de entradas (uso nuevo: sidecars leídos directamente de Drive).
-  var lista=(Array.isArray(archivosBD)?archivosBD:Object.keys(archivosBD||{}).map(function(k){return archivosBD[k];})).filter(function(x){return x&&x.estado!=='descartado';});
-  var documentos=lista.filter(function(x){return x.esDocumento===true;});
-  var fotografias=lista.filter(function(x){return x.esDocumento===false;});
-  var persona={
-    version:2,tipo:'persona-resumen',
-    personaId:String(personaId),personaNombre:personaNombre,
-    actualizado:new Date().toISOString(),
-    resumen:{
-      totalElementos:lista.length,
-      fotografias:fotografias.length,
-      documentos:documentos.length,
-      documentosConOcr:documentos.filter(function(x){return x.ocrProcesado;}).length,
-      documentosPendientesOcr:documentos.filter(function(x){return !x.ocrProcesado;}).length
-    },
-    documentos:documentos.map(resumirDocumentoParaPersonaJson),
-    fotografias:fotografias.map(resumirFotografiaParaPersonaJson)
-  };
-  var blob=new Blob([JSON.stringify(persona,null,2)],{type:'application/json;charset=utf-8'});
-  var nombreNuevo=nombrePersonaJson(personaId);
-  try{
-    var existente=await buscarConMigracionDeNombre(nombreNuevo,'_persona.json',carpeta.id);
-    if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
-    else await subirBinarioADrive(nombreNuevo,blob,'application/json',carpeta.id,'Resumen legible de los documentos de '+personaNombre+'. Generado automáticamente a partir del JSON individual de cada archivo; no editar a mano.');
-  }catch(err){console.warn('No se pudo guardar '+nombreNuevo+' de '+personaNombre+':',err.message);}
-  return persona;
-}
-/* ===== Reconstrucción de _persona.json SOLO desde Drive =====
-   Lee todos los sidecars (<nombre>.<idDrive>.json) que hay en la carpeta de la
-   persona, directamente de Drive, y con eso reconstruye _persona.json. No toca
-   IndexedDB en ningún momento: si abres el programa en otro navegador, con el
-   caché vacío, el resultado es exactamente el mismo, porque toda la información
-   que hace falta ya vive en Drive. */
+/* ===== BLOQUE E: CATÁLOGO POR PERSONA (construido directamente desde los sidecars) =====
+   El catálogo (<ID>_catalogo.json) es el ÚNICO agregado por persona que se guarda en
+   Drive — ya no existe <ID>_archivo-documental.json (v1.1) ni ningún <ID>_persona.json
+   intermedio: cada archivo de la carpeta ya tiene su propio JSON al lado (el sidecar,
+   ver más arriba), que es la fuente de verdad, y el catálogo se reconstruye cada vez
+   leyendo esos sidecars directamente de Drive — no de IndexedDB ni de ningún JSON
+   agregado por el medio. Por eso el resultado es idéntico venga de donde venga (mismo
+   navegador, otro navegador, u otro día). No se edita a mano. */
 function esNombreDeSidecarPropio(nombre){
   // Cualquier .json de la carpeta que no sea uno de los JSON especiales de la
-  // persona (persona, archivo-documental heredado, catálogo, google-photos)
-  // es el sidecar propio de un archivo. ANTES aquí se exigía que el nombre
-  // llevara un ID de Drive largo en medio (<algo>.<idDriveLargo>.json), pero
-  // nombreSidecarArchivo()/guardarSidecarArchivo() ya no lo incluyen — usan
-  // solo <nombreBase>.json — así que ese filtro dejaba fuera a TODOS los
-  // sidecars reales: listarSidecarsDeCarpeta() devolvía siempre una lista
-  // vacía, por eso no aparecían miniaturas tras «Repasar carpeta» y el
-  // _persona.json se reconstruía vacío aunque los sidecars sí existieran.
+  // persona (archivo-documental heredado, catálogo, google-photos) es el sidecar
+  // propio de un archivo. ANTES aquí se exigía que el nombre llevara un ID de Drive
+  // largo en medio (<algo>.<idDriveLargo>.json), pero nombreSidecarArchivo()/
+  // guardarSidecarArchivo() ya no lo incluyen — usan solo <nombreBase>.json — así
+  // que ese filtro dejaba fuera a TODOS los sidecars reales: listarSidecarsDeCarpeta()
+  // devolvía siempre una lista vacía, por eso no aparecían miniaturas tras «Repasar
+  // carpeta» y el catálogo se reconstruía vacío aunque los sidecars sí existieran.
   if(!/\.json$/i.test(nombre))return false;
   if(/\.google-photos\.json$/i.test(nombre))return false;
-  if(/_persona\.json$/i.test(nombre))return false;
   if(/_archivo-documental\.json$/i.test(nombre))return false;
   if(/_catalogo\.json$/i.test(nombre))return false;
   return true;
@@ -839,7 +754,7 @@ async function listarSidecarsDeCarpeta(carpetaId){
       if(!r.ok)continue;
       var contenido=JSON.parse(await r.text());
       // Adapta el sidecar (campo albumOrigen, sin "id") a la forma que ya esperan
-      // resumirDocumentoParaPersonaJson/resumirFotografiaParaPersonaJson.
+      // entradaCatalogoDocumento/entradaCatalogoFotografia.
       contenido.id=contenido.driveFileId||sidecarsInfo[i].id;
       contenido.nombreOriginal=contenido.nombreOriginal||sidecarsInfo[i].name;
       contenido.albumesOrigen=contenido.albumOrigen?[contenido.albumOrigen]:[];
@@ -848,44 +763,92 @@ async function listarSidecarsDeCarpeta(carpetaId){
   }
   return resultado;
 }
-async function reconstruirPersonaJsonDesdeDrive(personaId,personaNombre){
-  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
-  var lista=await listarSidecarsDeCarpeta(carpeta.id);
-  await actualizarPersonaJson(personaId,personaNombre,carpeta,lista);
-  return{sincronizados:lista.length};
+function nombreCatalogoPersona(personaId){return String(personaId)+'_catalogo.json';}
+/* Descripción breve de un documento: prioriza las "informativas" que ya extrae el OCR
+   (frases legibles tipo "Posible padre: X"), y solo si no hay ninguna cae en un extracto
+   corto del texto OCR — nunca el texto completo. */
+function descripcionBreveDocumento(d){
+  var informativas=((d.ocrSugerencias&&d.ocrSugerencias.informativas)||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
+  if(informativas.length)return informativas.join(' · ');
+  var texto=String(d.ocrTexto||'').trim();
+  if(texto)return texto.length>150?texto.slice(0,150)+'…':texto;
+  return '';
 }
-/* Reconstruye y graba en Drive el _persona.json de UN elemento concreto, a
-   partir de lo que ya hay en IndexedDB para esa persona. Ya NO se lee ni se
-   escribe ningún <ID>_archivo-documental.json intermedio: IndexedDB es solo
-   memoria de trabajo del navegador (se puede borrar sin perder nada, porque
-   lo que de verdad queda grabado —metadatos y OCR de cada archivo— está en
-   el sidecar de ese archivo en Drive); aquí simplemente se usa para reunir de
-   un vistazo todo lo que ya se sabe de la persona y volcarlo al resumen. */
-async function actualizarPersonaJsonDesdeLocal(elemento){
+/* Descripción breve de una fotografía: descripción de Google Fotos + etiquetas. */
+function descripcionBreveFotografia(f){
+  var partes=[];
+  var desc=String(f.googlePhotosDescription||'').trim();
+  if(desc)partes.push(desc);
+  var etiquetas=(f.etiquetas||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
+  if(etiquetas.length)partes.push('Etiquetas: '+etiquetas.join(', '));
+  return partes.join(' · ');
+}
+/* Convierte un sidecar (ya leído de Drive) en la entrada de catálogo de un documento —
+   persona, nombre de archivo, tipo, fecha y una descripción breve, nunca el texto OCR
+   completo. */
+function entradaCatalogoDocumento(d,personaId,personaNombre){
+  return{id:d.driveFileId||d.id||null,personaId:String(personaId),persona:personaNombre,nombre:d.nombreOriginal||'',tipo:'documento',fecha:d.fecha||null,descripcion:descripcionBreveDocumento(d)};
+}
+/* Convierte un sidecar (ya leído de Drive) en la entrada de catálogo de una fotografía
+   o vídeo. */
+function entradaCatalogoFotografia(f,personaId,personaNombre){
+  return{id:f.driveFileId||f.id||null,personaId:String(personaId),persona:personaNombre,nombre:f.nombreOriginal||'',tipo:(f.tipo==='video'?'video':'fotografia'),fecha:f.fecha||null,descripcion:descripcionBreveFotografia(f)};
+}
+/* Construye el catálogo de una persona leyendo, uno a uno, los sidecars de su carpeta
+   en Drive. No toca IndexedDB en ningún momento. */
+async function construirCatalogoPersona(personaId,personaNombre,carpeta){
+  var lista=(await listarSidecarsDeCarpeta(carpeta.id)).filter(function(x){return x&&x.estado!=='descartado';});
+  var documentos=lista.filter(function(x){return x.esDocumento===true;});
+  var fotografias=lista.filter(function(x){return x.esDocumento===false;});
+  var entradas=documentos.map(function(d){return entradaCatalogoDocumento(d,personaId,personaNombre);})
+    .concat(fotografias.map(function(f){return entradaCatalogoFotografia(f,personaId,personaNombre);}));
+  return{
+    version:1,tipo:'catalogo-persona',
+    personaId:String(personaId),personaNombre:personaNombre,
+    generado:new Date().toISOString(),
+    entradas:entradas
+  };
+}
+/* Construye y graba en Drive el <ID>_catalogo.json de una persona, en la misma
+   carpeta que sus demás archivos. */
+async function actualizarCatalogoPersona(personaId,personaNombre,carpeta){
+  var catalogo=await construirCatalogoPersona(personaId,personaNombre,carpeta);
+  var blob=new Blob([JSON.stringify(catalogo,null,2)],{type:'application/json;charset=utf-8'});
+  var nombreArchivo=nombreCatalogoPersona(personaId);
+  try{
+    var existente=await buscarArchivoPorNombreEnCarpeta(nombreArchivo,carpeta.id);
+    if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
+    else await subirBinarioADrive(nombreArchivo,blob,'application/json',carpeta.id,'Catálogo de '+personaNombre+': una ficha corta por archivo (persona, nombre, tipo, fecha y descripción breve), sin el texto OCR completo. Generado automáticamente a partir de los sidecars de la carpeta; no editar a mano.');
+  }catch(err){console.warn('No se pudo guardar '+nombreArchivo+' de '+personaNombre+':',err.message);}
+  return catalogo;
+}
+async function reconstruirCatalogoDesdeDrive(personaId,personaNombre){
+  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
+  var catalogo=await actualizarCatalogoPersona(personaId,personaNombre,carpeta);
+  return{sincronizados:catalogo.entradas.length,catalogo:catalogo};
+}
+/* Reconstruye y graba en Drive el catálogo de la persona de UN elemento concreto, leyendo
+   de nuevo su carpeta en Drive — así el catálogo queda al día sin depender de IndexedDB. */
+async function actualizarCatalogoPersonaDesdeLocal(elemento){
   if(!elemento || !elemento.personaAsignadaId)return;
   var personaId=elemento.personaAsignadaId;
   var personaNombre=(elemento.personas&&elemento.personas[0])||elemento.personaAsignadaNombre||('Persona '+personaId);
   var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
-  var locales=await cAll('elementos');
-  var archivosBD={};
-  locales.forEach(function(e){if(e && String(e.personaAsignadaId)===String(personaId))archivosBD[e.id]=e;});
-  archivosBD[elemento.id]=elemento; // por si el cPut del llamador todavía no se refleja en cAll
-  await actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD);
+  await actualizarCatalogoPersona(personaId,personaNombre,carpeta);
 }
 /* =====================================================================
    SINCRONIZACIÓN MANUAL DEL REGISTRO CON DRIVE (botón, no automático)
-   Reescribe el _persona.json de una persona a partir de TODO lo que ya está
-   en IndexedDB para ella. Antes esta función también leía/escribía un
-   <ID>_archivo-documental.json completo en cada llamada; ya no existe: el
-   registro completo de cada archivo (metadatos + OCR) vive en su propio
-   sidecar en Drive, así que aquí basta con IndexedDB para reunir la lista de
-   la persona y volcar el resumen.
+   Reconstruye el catálogo de una persona leyendo, uno a uno, los sidecars que
+   hay en su carpeta en Drive — no de ningún <ID>_archivo-documental.json ni
+   <ID>_persona.json intermedio: el registro completo de cada archivo
+   (metadatos + OCR) vive en su propio sidecar en Drive, que es la fuente de
+   verdad, así que aquí basta con leerlos todos y volcar el catálogo.
    ===================================================================== */
 async function sincronizarPersona(personaId,personaNombre){
-  // Ya no lee IndexedDB: reconstruye _persona.json leyendo, uno a uno, los
-  // sidecars que hay en la carpeta de la persona en Drive. Así el resultado es
-  // idéntico venga de donde venga (mismo navegador, otro navegador, u otro día).
-  var r=await reconstruirPersonaJsonDesdeDrive(personaId,personaNombre);
+  // Reconstruye el catálogo leyendo, uno a uno, los sidecars que hay en la
+  // carpeta de la persona en Drive. Así el resultado es idéntico venga de
+  // donde venga (mismo navegador, otro navegador, u otro día).
+  var r=await reconstruirCatalogoDesdeDrive(personaId,personaNombre);
   // Si por compatibilidad quedan elementos locales marcados como pendientes,
   // los limpiamos (es solo un aviso en pantalla, ya no afecta a lo que se graba).
   try{
@@ -896,9 +859,9 @@ async function sincronizarPersona(personaId,personaNombre){
   return r;
 }
 /* La función guardarJsonPersonaActualRepaso() (botón "Guardar JSON de esta
-   persona ahora", sin condiciones) se eliminó: dejaba grabar el _persona.json
-   con documentos que todavía no tenían OCR, saltándose el único camino que
-   debe existir para ese archivo — el botón "Sincronizar registro", que sí
+   persona ahora", sin condiciones) se eliminó: dejaba grabar el catálogo con
+   documentos que todavía no tenían OCR, saltándose el único camino que debe
+   existir para ese archivo — el botón "Sincronizar registro", que sí
    comprueba que no quede OCR pendiente. */
 async function obtenerPersonasPendientesSincronizar(){
   var locales=await cAll('elementos');
@@ -1746,7 +1709,7 @@ try{
 // El JSON original de Google Fotos queda integrado dentro de este mismo sidecar.
 await guardarSidecarArchivo(elemento,carpetaDestino.id,personaNombre);
 
-// BLOQUE "Sincronizar registros": ya NO se sube _persona.json aquí, foto a
+// BLOQUE "Sincronizar registros": ya NO se sube el catálogo aquí, foto a
 // foto (eso es lo que hacía que un álbum grande se fuera frenando cada vez
 // más, subiendo un archivo cada vez más grande en cada foto). El archivo físico ya está
 // copiado y a salvo en Drive; el REGISTRO se sincroniza aparte, de una sola vez por
@@ -1894,7 +1857,7 @@ return{text:'',confidence:0,ocrHistorial:[]};
 
 /* Migración silenciosa (una sola vez, al arrancar): los elementos guardados ANTES de
    introducir el campo esDocumento no lo tienen, y por tanto quedaban fuera de la cola
-   de OCR pendiente y de los recuentos de _persona.json. Se infiere a partir del estado
+   de OCR pendiente y de los recuentos del catálogo. Se infiere a partir del estado
    ya guardado, sin tocar nada más. */
 async function migrarEsDocumentoLegacy(){
 try{
@@ -1963,8 +1926,8 @@ await guardarSidecarArchivo(elemento,null,(elemento.personas&&elemento.personas[
 // se guardaba en IndexedDB (este cPut) y ahí se quedaba hasta que alguien pulsara
 // "Sincronizar" a mano. Ahora, en cuanto el OCR termina, la ficha completa (con su
 // texto, sus sugerencias y sus hallazgos) se guarda al momento en Drive — en su
-// propio sidecar (arriba) y en el _persona.json de la persona— para que
-// biografía e informe la vean sin depender de ningún paso manual posterior.
+// propio sidecar (arriba) y en el catálogo de la persona — para que el catálogo
+// la vea sin depender de ningún paso manual posterior.
 if(elemento.personaAsignadaId){
   await guardarFichaAlMomento(elemento);
 }
@@ -2557,18 +2520,6 @@ try{
   }
 }catch(e){}
 }
-async function sincronizarPersonaElegidaRepaso(){
-if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres sincronizar',true);return;}
-var pid=String(REPASO_PERSONA_ACTUAL.id),nombre=REPASO_PERSONA_ACTUAL.nombre;
-var carpeta=await carpetaDocumentosPersona(pid,nombre);
-var sidecars=await listarSidecarsDeCarpeta(carpeta.id);
-var pendientes=sidecars.filter(function(s){return s&&s.esDocumento===true&&!s.ocrProcesado;});
-if(pendientes.length){
-toast('Primero termina el OCR de '+pendientes.length+' documento(s) de '+nombre+'.',true);
-return;
-}
-await sincronizarUnaPersonaUI(pid,nombre);
-}
 /* =====================================================================
    EXPLORADOR — pestaña independiente de solo lectura.
    Todo lo que muestra viene de leer, en el momento, la carpeta de la persona
@@ -2676,8 +2627,8 @@ det.scrollIntoView({behavior:'smooth',block:'start'});
 /* Igual que relanzarOcrRepaso() (Repasar carpeta), pero para cualquier archivo
    consultado desde el Explorador, sea documento o fotografía, ya tenga OCR o
    no. Siempre prueba rápido + profundo y se queda con el mejor de los dos.
-   Solo actualiza el sidecar del archivo (guardarSidecarArchivo); _persona.json
-   no se toca aquí — se actualiza solo con el botón "Guardar JSON de esta
+   Solo actualiza el sidecar del archivo (guardarSidecarArchivo); el catálogo
+   no se toca aquí — se actualiza solo con el botón "Generar catálogo de esta
    persona", como el resto de acciones individuales. */
 async function relanzarOcrExplorador(idx){
 var el=EXPLORADOR_ARCHIVOS[idx];
@@ -2796,9 +2747,8 @@ var idsConSidecar={};
 sidecarsYaLeidos.forEach(function(s){if(s.driveFileId)idsConSidecar[String(s.driveFileId)]=true;});
 var sinRegistrar=archivos.filter(function(f){
 return f.mimeType!=='application/vnd.google-apps.folder'
-&&f.name!==nombreArchivoDocumental(pid)&&f.name!==nombrePersonaJson(pid)
-&&f.name!=='archivo-documental.json'&&f.name!=='_persona.json'
-&&f.name!==String(pid)+'_catalogo.json'
+&&f.name!==nombreArchivoDocumental(pid)&&f.name!==nombreCatalogoPersona(pid)
+&&f.name!=='archivo-documental.json'
 &&!/\.google-photos\.json$/i.test(f.name)
 &&!esNombreDeSidecarPropio(f.name)
 &&!idsConSidecar[String(f.id)];
@@ -2809,11 +2759,11 @@ for(var i=0;i<sinRegistrar.length;i++){
   await registrarArchivoExistenteAutomaticamente(sinRegistrar[i],String(pid),nombre,carpeta.id);
   actualizados++;
 }
-if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s). Ahora puedes indicar manualmente cuáles son documentos. Solo los que marques como <b>«Es documento»</b> pasarán a OCR pendiente. El resumen <code>_persona.json</code> no se toca en este paso: se crea o actualiza solo cuando pulses «Sincronizar».</p>';
+if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s). Ahora puedes indicar manualmente cuáles son documentos. Solo los que marques como <b>«Es documento»</b> pasarán a OCR pendiente. El <code>_catalogo.json</code> no se toca en este paso: se crea o actualiza solo cuando pulses «Generar catálogo de esta persona».</p>';
 // Repasar carpeta ya NO llama a sincronizarPersona(): antes se reconstruía
-// _persona.json aquí mismo, en cada repaso, aunque el usuario no lo hubiera
+// el catálogo aquí mismo, en cada repaso, aunque el usuario no lo hubiera
 // pedido. Ahora ese archivo solo se crea/actualiza desde los botones
-// explícitos de sincronización (sincronizarPersonaElegidaRepaso,
+// explícitos de sincronización ("Generar catálogo de esta persona",
 // sincronizarUnaPersonaUI/Todas).
 await actualizarResumenOCRPendiente();
 try{await renderPendientesSincronizar();}catch(e){}
@@ -2862,19 +2812,19 @@ if(img&&img.tagName==='DIV'){img.outerHTML='<img class="duda-thumb" id="miniRepa
 }).catch(function(){});
 });
 }
-/* Guarda al momento en Drive (_persona.json de la persona; el registro completo
-   de este elemento ya vive en su propio sidecar, subido aparte por
+/* Guarda al momento en Drive (reconstruyendo el catálogo de la persona; el registro
+   completo de este elemento ya vive en su propio sidecar, subido aparte por
    guardarSidecarArchivo) la ficha de UN elemento, en vez de dejarla "pendiente
    de sincronizar". Se usa cuando el usuario actúa sobre un elemento suelto
    (decidir foto/documento, ejecutar OCR): en esos casos no hay ningún lote
    grande que proteger de ralentizarse, así que no tiene sentido obligar a una
-   sincronización manual aparte para que el dato quede a salvo y visible en
-   biografía/informe. Si falla (sin conexión, etc.), el elemento se queda con
+   sincronización manual aparte para que el dato quede a salvo y visible en el
+   catálogo. Si falla (sin conexión, etc.), el elemento se queda con
    sincronizadoDrive:false y sigue disponible el aviso de "pendientes de sincronizar" del
    Panel como red de seguridad. */
 async function guardarFichaAlMomento(elemento){
 try{
-await actualizarPersonaJsonDesdeLocal(elemento);
+await actualizarCatalogoPersonaDesdeLocal(elemento);
 elemento.sincronizadoDrive=true;
 await cPut('elementos',elemento);
 return true;
@@ -2898,9 +2848,10 @@ el.ocrError=null;
 await cPut('elementos',el);
 var carpeta=await carpetaDocumentosPersona(pid,nombre);
 await guardarSidecarArchivo(el,carpeta.id,nombre);
-// _persona.json ya NO se actualiza aquí: el sidecar de este archivo (con
+// El catálogo NO se actualiza aquí: el sidecar de este archivo (con
 // esDocumento/ocrPendiente ya al día) queda guardado en Drive al momento;
-// el resumen de la persona se crea/actualiza solo con el botón "Sincronizar".
+// el catálogo de la persona se crea/actualiza solo con el botón "Generar
+// catálogo de esta persona" o "Sincronizar".
 REPASO_CLASIFICADOS.splice(idx,1);
 renderRepasoCarpeta();
 await actualizarResumenOCRPendiente();
@@ -2930,8 +2881,9 @@ el.ocrSugerencias=el.ocrTexto.trim().length>=20?analizarTextoGenealogico(el.ocrT
 el.ocrHallazgos=generarHallazgosOCR(el.ocrTexto,el.ocrConfianza);
 var carpeta=await carpetaDocumentosPersona(pid,nombre);
 await guardarSidecarArchivo(el,carpeta.id,nombre);
-// _persona.json ya NO se actualiza aquí: igual que en reclasificarComoDocumento,
-// el resumen de la persona se crea/actualiza solo con el botón "Sincronizar".
+// El catálogo NO se actualiza aquí: igual que en reclasificarComoDocumento,
+// el catálogo de la persona se crea/actualiza solo con el botón "Generar
+// catálogo de esta persona" o "Sincronizar".
 toast('✓ OCR de '+el.nombreOriginal+' actualizado en Drive.');
 }catch(err){toast('No se pudo relanzar el OCR de '+el.nombreOriginal+'. '+mensajeErrorHumano(err.message),true);}
 }
@@ -3364,11 +3316,11 @@ toast(resumen);
    Este programa guarda sus datos de trabajo (cajas, elementos importados y
    configuración) en una base de datos IndexedDB propia, 'ArchivoDocumentalFamiliar_v1'.
    Es solo caché de sesión: la información que de verdad importa (sidecars, OCR,
-   _persona.json) ya está en Drive, así que borrar esta caché no pierde nada — Google
+   catálogo) ya está en Drive, así que borrar esta caché no pierde nada — Google
    Drive no se toca, y tampoco la base de datos del árbol genealógico ('Genealogia'),
    que es otra aplicación completamente aparte. */
 async function limpiarCacheDelPrograma(){
-if(!confirm('Esto borra TODOS los datos guardados en este navegador por este programa: cajas detectadas, elementos importados y la configuración (Drive, OCR).\n\nNo se borra nada de Google Drive: los sidecars, los _persona.json y los archivos que ya se subieron siguen allí tal cual. Tampoco afecta a otras aplicaciones, como el árbol genealógico.\n\nDespués de borrarla, la página se recargará y habrá que volver a conectar con Drive; "Repasar carpeta" reconstruye todo lo demás leyendo Drive.\n\n¿Continuar?'))return;
+if(!confirm('Esto borra TODOS los datos guardados en este navegador por este programa: cajas detectadas, elementos importados y la configuración (Drive, OCR).\n\nNo se borra nada de Google Drive: los sidecars, los catálogos y los archivos que ya se subieron siguen allí tal cual. Tampoco afecta a otras aplicaciones, como el árbol genealógico.\n\nDespués de borrarla, la página se recargará y habrá que volver a conectar con Drive; "Repasar carpeta" reconstruye todo lo demás leyendo Drive.\n\n¿Continuar?'))return;
 try{
 if(typeof db!=='undefined'&&db){try{db.close();}catch(e){}db=null;}
 await new Promise(function(res,rej){
@@ -3381,128 +3333,40 @@ toast('Caché borrada. Recargando…');
 setTimeout(function(){location.reload();},700);
 }catch(err){toast('No se pudo vaciar la caché: '+err.message,true);}
 }
-/* ===== BLOQUE F: CATÁLOGO POR PERSONA (leído desde _persona.json) =====
-   Sustituye a la antigua biografía y al informe individual/familiar. Por cada
-   archivo ya analizado de la persona (documento o fotografía) genera una
-   ficha corta — persona, nombre de archivo, tipo, fecha y una descripción
-   breve — nunca el texto OCR completo. Se guarda en Drive como
-   <ID>_catalogo.json, en la misma carpeta que sus demás archivos. No se
-   edita a mano. */
-async function cargarPersonaJson(carpeta,personaId){
-  var f=personaId?await buscarConMigracionDeNombre(nombrePersonaJson(personaId),'_persona.json',carpeta.id):await buscarArchivoPorNombreEnCarpeta('_persona.json',carpeta.id);
-  if(!f)return null;
-  var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(f.id)+'?alt=media');
-  if(!r.ok)return null;
-  try{return JSON.parse(await r.text());}catch(e){return null;}
-}
-function nombreCatalogoPersonaJson(personaId){return String(personaId)+'_catalogo.json';}
-/* Descripción breve de un documento: prioriza las "informativas" que ya
-   extrae el OCR (frases legibles tipo "Posible padre: X"), y solo si no hay
-   ninguna cae en un extracto corto del texto OCR — nunca el texto completo. */
-function descripcionBreveDocumento(d){
-  var informativas=(d.informativas||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
-  if(informativas.length)return informativas.join(' · ');
-  var texto=String(d.extractoTexto||'').trim();
-  if(texto)return texto.length>150?texto.slice(0,150)+'…':texto;
-  return '';
-}
-/* Descripción breve de una fotografía: descripción de Google Fotos + etiquetas. */
-function descripcionBreveFotografia(f){
-  var partes=[];
-  var desc=String(f.descripcionGoogleFotos||'').trim();
-  if(desc)partes.push(desc);
-  var etiquetas=(f.etiquetas||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
-  if(etiquetas.length)partes.push('Etiquetas: '+etiquetas.join(', '));
-  return partes.join(' · ');
-}
-async function generarCatalogoPersona(personaId,personaNombre){
-  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
-  var pj=await cargarPersonaJson(carpeta,personaId);
-  var docs=pj?(pj.documentos||[]):[];
-  var fotos=pj?(pj.fotografias||[]):[];
-  var entradas=[];
-  docs.forEach(function(d){
-    entradas.push({id:d.driveFileId||null,personaId:String(personaId),persona:personaNombre,nombre:d.nombre||'',tipo:'documento',fecha:d.fecha||null,descripcion:descripcionBreveDocumento(d)});
-  });
-  fotos.forEach(function(f){
-    entradas.push({id:f.driveFileId||null,personaId:String(personaId),persona:personaNombre,nombre:f.nombre||'',tipo:(f.tipo==='video'?'video':'fotografia'),fecha:f.fecha||null,descripcion:descripcionBreveFotografia(f)});
-  });
-  var catalogo={
-    version:1,tipo:'catalogo-persona',
-    personaId:String(personaId),personaNombre:personaNombre,
-    generado:new Date().toISOString(),
-    entradas:entradas
-  };
-  var blob=new Blob([JSON.stringify(catalogo,null,2)],{type:'application/json;charset=utf-8'});
-  var nombreArchivo=nombreCatalogoPersonaJson(personaId);
-  var existente=await buscarArchivoPorNombreEnCarpeta(nombreArchivo,carpeta.id);
-  if(existente)await actualizarBinarioADrive(existente.id,blob,'application/json');
-  else await subirBinarioADrive(nombreArchivo,blob,'application/json',carpeta.id,'Catálogo de '+personaNombre+': una ficha corta por archivo (persona, nombre, tipo, fecha y descripción breve), sin el texto OCR completo. Generado automáticamente a partir de _persona.json; no editar a mano.');
-  return catalogo;
-}
-/* Llamada desde el botón de "Analizar documentos" — usa la persona ya elegida ahí. */
+/* Llamada desde el botón de "Analizar documentos" — usa la persona ya elegida ahí.
+   Antes de generar el catálogo comprueba que no quede OCR pendiente para esa
+   persona (si lo hay, avisa y no genera nada, para no publicar un catálogo con
+   documentos a medio analizar). Sustituye a los dos botones que antes existían
+   por separado ("Generar catálogo" y "Guardar JSON"): ahora es uno solo. */
 async function generarCatalogoElegidaRepaso(){
   if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar el catálogo',true);return;}
   var id=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
   var out=document.getElementById('resultadoInforme');
-  if(out)out.innerHTML='<p><b>Generando el catálogo de '+esc(nombre)+'…</b></p>';
+  if(out)out.innerHTML='<p><b>Comprobando el OCR pendiente de '+esc(nombre)+'…</b></p>';
   try{
-    var cat=await generarCatalogoPersona(id,nombre);
-    if(out)out.innerHTML='<h3>Catálogo de '+esc(nombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(id)+'/'+esc(nombreCatalogoPersonaJson(id))+'. '+cat.entradas.length+' entrada(s).</p>';
+    var carpeta=await carpetaDocumentosPersona(id,nombre);
+    var sidecars=await listarSidecarsDeCarpeta(carpeta.id);
+    var pendientes=sidecars.filter(function(s){return s&&s.esDocumento===true&&!s.ocrProcesado;});
+    if(pendientes.length){
+      if(out)out.innerHTML='<p style="color:var(--warn);font-size:12px">Primero termina el OCR de '+pendientes.length+' documento(s) de '+esc(nombre)+' (paso 2, «Ejecutar OCR pendiente»).</p>';
+      toast('Primero termina el OCR de '+pendientes.length+' documento(s) de '+nombre+'.',true);
+      return;
+    }
+    if(out)out.innerHTML='<p><b>Generando el catálogo de '+esc(nombre)+'…</b></p>';
+    var cat=await actualizarCatalogoPersona(id,nombre,carpeta);
+    if(out)out.innerHTML='<h3>Catálogo de '+esc(nombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(id)+'/'+esc(nombreCatalogoPersona(id))+'. '+cat.entradas.length+' entrada(s).</p>';
     toast('✓ Catálogo de '+nombre+' generado y guardado en Drive.');
+    try{
+      var locales=await cAll('elementos');
+      var deEsta=locales.filter(function(e){return e && String(e.personaAsignadaId)===String(id);});
+      for(var i=0;i<deEsta.length;i++){deEsta[i].sincronizadoDrive=true;await cPut('elementos',deEsta[i]);}
+      await renderPendientesSincronizar();
+    }catch(e){/* si no hay IndexedDB o está vacía, no pasa nada: Drive ya quedó al día */}
   }catch(err){
     var msgHumano=mensajeErrorHumano(err.message);
     if(out)out.innerHTML='<p style="color:var(--warn)"><b>No se pudo generar el catálogo.</b><br>'+esc(msgHumano)+'</p>';
     toast(msgHumano,true);
   }
-}
-/* ===== CATÁLOGO GENERAL (exportar a CSV lo que ya esté guardado en Drive) =====
-   Recorre todas las carpetas de DOCUMENTOS/ y junta los <ID>_catalogo.json que
-   ya estén generados (ver generarCatalogoPersona) en un único .csv, pensado
-   para abrir en Excel, Google Sheets o LibreOffice. No genera catálogos
-   nuevos ni lee sidecar por sidecar: las personas sin <ID>_catalogo.json
-   todavía no aparecen. Se descarga directamente a tu ordenador, no se guarda
-   en Drive. Función para escapar un valor en formato CSV (comillas dobles
-   alrededor si el contenido incluye comas, comillas o saltos de línea). */
-function csvValor(v){
-  var s=String(v==null?'':v);
-  if(/[",\n\r]/.test(s))s='"'+s.replace(/"/g,'""')+'"';
-  return s;
-}
-async function descargarCatalogoGeneral(){
-  var out=document.getElementById('resultadoCatalogo'); if(out)out.innerHTML='<p><b>Buscando carpetas de personas en DOCUMENTOS/…</b></p>';
-  try{
-    var raizDocs=await carpetaRaizDOCUMENTOS();
-    var subcarpetas=await listarTodosArchivosDrive("'"+raizDocs+"' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'","id,name");
-    if(!subcarpetas.length){if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Todavía no hay ninguna carpeta de persona en DOCUMENTOS/. Importa o repasa algo primero.</p>';return;}
-    var filas=[],personasSinCatalogo=0;
-    for(var i=0;i<subcarpetas.length;i++){
-      var sc=subcarpetas[i];
-      if(out)out.innerHTML='<p><b>Leyendo '+(i+1)+' de '+subcarpetas.length+'…</b></p>';
-      var f=await buscarArchivoPorNombreEnCarpeta(nombreCatalogoPersonaJson(sc.name),sc.id);
-      if(!f){personasSinCatalogo++;continue;}
-      try{
-        var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(f.id)+'?alt=media');
-        if(!r.ok)continue;
-        var cat=JSON.parse(await r.text());
-        (cat.entradas||[]).forEach(function(e){
-          filas.push([cat.personaId||sc.name,cat.personaNombre||'',e.tipo||'',e.nombre||'',e.fecha?String(e.fecha).slice(0,10):'',e.descripcion||'']);
-        });
-      }catch(errLectura){console.warn('Catálogo ilegible en '+sc.name+':',errLectura.message);}
-    }
-    if(!filas.length){if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Todavía no hay ningún catálogo de persona generado. Genera primero el de cada persona desde "Analizar documentos".</p>';return;}
-    var cabecera=['ID persona','Persona','Tipo','Nombre de archivo','Fecha','Descripción'];
-    var csv='\uFEFF'+cabecera.map(csvValor).join(',')+'\r\n'+filas.map(function(f){return f.map(csvValor).join(',');}).join('\r\n');
-    var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='catalogo_general_'+new Date().toISOString().slice(0,10)+'.csv';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
-    var nota=personasSinCatalogo?(' '+personasSinCatalogo+' persona(s) sin catálogo generado todavía no aparecen.'):'';
-    if(out)out.innerHTML='<h3>Catálogo descargado</h3><p style="font-size:12px;color:var(--muted)">'+filas.length+' fila(s) de '+(subcarpetas.length-personasSinCatalogo)+' persona(s) con catálogo generado.'+nota+'</p>';
-    toast('Catálogo general descargado: '+filas.length+' fila(s)');
-  }catch(e){var msgHumano=mensajeErrorHumano(e.message);if(out)out.innerHTML='<p style="color:var(--warn)"><b>No se pudo generar el catálogo.</b><br>'+esc(msgHumano)+'</p>';toast(msgHumano,true);}
 }
 /* ===== INICIO ===== */
 document.addEventListener('DOMContentLoaded',function(){
