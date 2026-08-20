@@ -820,12 +820,20 @@ async function actualizarPersonaJson(personaId,personaNombre,carpeta,archivosBD)
    caché vacío, el resultado es exactamente el mismo, porque toda la información
    que hace falta ya vive en Drive. */
 function esNombreDeSidecarPropio(nombre){
-  // <algo>.<idDriveLargo>.json — se excluyen explícitamente los JSON especiales
-  // (persona, biografía, google-photos) que no son sidecars de un archivo.
-  if(!/\.[a-zA-Z0-9_-]{10,}\.json$/i.test(nombre))return false;
+  // Cualquier .json de la carpeta que no sea uno de los JSON especiales de la
+  // persona (persona, archivo-documental heredado, biografía, google-photos)
+  // es el sidecar propio de un archivo. ANTES aquí se exigía que el nombre
+  // llevara un ID de Drive largo en medio (<algo>.<idDriveLargo>.json), pero
+  // nombreSidecarArchivo()/guardarSidecarArchivo() ya no lo incluyen — usan
+  // solo <nombreBase>.json — así que ese filtro dejaba fuera a TODOS los
+  // sidecars reales: listarSidecarsDeCarpeta() devolvía siempre una lista
+  // vacía, por eso no aparecían miniaturas tras «Repasar carpeta» y el
+  // _persona.json se reconstruía vacío aunque los sidecars sí existieran.
+  if(!/\.json$/i.test(nombre))return false;
   if(/\.google-photos\.json$/i.test(nombre))return false;
-  if(/^_persona\.json$|_persona\.json$/i.test(nombre))return false;
-  if(/^_biografia\.json$|_biografia\.json$/i.test(nombre))return false;
+  if(/_persona\.json$/i.test(nombre))return false;
+  if(/_archivo-documental\.json$/i.test(nombre))return false;
+  if(/_biografia\.json$/i.test(nombre))return false;
   return true;
 }
 async function listarSidecarsDeCarpeta(carpetaId){
@@ -3011,10 +3019,12 @@ for(var i=0;i<sinRegistrar.length;i++){
   await registrarArchivoExistenteAutomaticamente(sinRegistrar[i],String(pid),nombre,carpeta.id);
   actualizados++;
 }
-if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s). Ahora puedes indicar manualmente cuáles son documentos. Solo los que marques como <b>«Es documento»</b> pasarán a OCR pendiente.</p>';
-// _persona.json se reconstruye siempre desde los sidecars de Drive: no hace
-// falta comprobar "pendientes", el resultado es correcto se haga lo que se haga.
-await sincronizarPersona(pid,nombre);
+if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s). Ahora puedes indicar manualmente cuáles son documentos. Solo los que marques como <b>«Es documento»</b> pasarán a OCR pendiente. El resumen <code>_persona.json</code> no se toca en este paso: se crea o actualiza solo cuando pulses «Sincronizar».</p>';
+// Repasar carpeta ya NO llama a sincronizarPersona(): antes se reconstruía
+// _persona.json aquí mismo, en cada repaso, aunque el usuario no lo hubiera
+// pedido. Ahora ese archivo solo se crea/actualiza desde los botones
+// explícitos de sincronización (sincronizarPersonaElegidaRepaso,
+// guardarJsonPersonaActualRepaso, sincronizarUnaPersonaUI/Todas).
 await actualizarResumenOCRPendiente();
 try{await renderPendientesSincronizar();}catch(e){}
 // Releemos los sidecars ya con lo recién registrado, para la lista de "reclasificar".
@@ -3098,7 +3108,9 @@ el.ocrError=null;
 await cPut('elementos',el);
 var carpeta=await carpetaDocumentosPersona(pid,nombre);
 await guardarSidecarArchivo(el,carpeta.id,nombre);
-await sincronizarPersona(pid,nombre);
+// _persona.json ya NO se actualiza aquí: el sidecar de este archivo (con
+// esDocumento/ocrPendiente ya al día) queda guardado en Drive al momento;
+// el resumen de la persona se crea/actualiza solo con el botón "Sincronizar".
 REPASO_CLASIFICADOS.splice(idx,1);
 renderRepasoCarpeta();
 await actualizarResumenOCRPendiente();
@@ -3128,7 +3140,8 @@ el.ocrSugerencias=el.ocrTexto.trim().length>=20?analizarTextoGenealogico(el.ocrT
 el.ocrHallazgos=generarHallazgosOCR(el.ocrTexto,el.ocrConfianza);
 var carpeta=await carpetaDocumentosPersona(pid,nombre);
 await guardarSidecarArchivo(el,carpeta.id,nombre);
-await sincronizarPersona(pid,nombre);
+// _persona.json ya NO se actualiza aquí: igual que en reclasificarComoDocumento,
+// el resumen de la persona se crea/actualiza solo con el botón "Sincronizar".
 toast('✓ OCR de '+el.nombreOriginal+' actualizado en Drive.');
 }catch(err){toast('No se pudo relanzar el OCR de '+el.nombreOriginal+'. '+mensajeErrorHumano(err.message),true);}
 }
