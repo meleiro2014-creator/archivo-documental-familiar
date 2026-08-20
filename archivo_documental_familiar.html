@@ -22,6 +22,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/spark-md5/3.0.2/spark-md5.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js" defer></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
 <style>
 /* Misma paleta que arbolgenealogico_3.html, para que ambas herramientas se sientan como
    una sola aplicación aunque vivan en archivos separados. */
@@ -102,7 +103,6 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 #progresoAsignacionNota{font-size:11px;color:var(--muted,#777);margin-top:12px;line-height:1.45}
 #progresoAsignacionOverlay .spinner{display:inline-block;width:13px;height:13px;border:2px solid #d9cfc2;border-top-color:var(--accent,#c96536);border-radius:50%;animation:progresoSpin .8s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes progresoSpin{to{transform:rotate(360deg)}}
- #vSug{display:none!important}
 #progresoGlobalBox{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;width:min(760px,calc(100vw - 32px));background:#fff;border:1px solid #d9cdbf;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.16);padding:14px 16px;display:none}
 #progresoGlobalBox .pg-title{font-weight:700;font-size:14px;margin-bottom:7px}
 #progresoGlobalBox .pg-sub{font-size:12px;color:#6f6258;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -323,8 +323,7 @@ var vistaCajaAbierta={};
    el programa vuelve a leer los ZIP originales de Drive y procesa únicamente ese álbum. */
 var MAPA_ALIAS_ALBUM={};
 var colaAlbumesPendientes={};
-var PENDIENTES_HIDRATADOS=false;
-var BASE_DATOS_CACHE=null, BASE_DATOS_FILE_ID=null, BASE_DATOS_GUARDANDO=null;
+var BASE_DATOS_CACHE=null, BASE_DATOS_FILE_ID=null;
 
 
 var PG={inicio:0,total:0,hechos:0,archivo:'',etapa:'',visible:false};
@@ -697,30 +696,6 @@ async function cargarBaseDatosDrive(){
    el de dos personas se pisaban entre sí o había que abrir cada uno para saber de
    quién era. */
 function nombreArchivoDocumental(personaId){return String(personaId)+'_archivo-documental.json';}
-/* Migración automática y silenciosa: si el archivo ya existía con el nombre antiguo
-   (sin el ID delante), se renombra en el sitio — mismo archivo, mismo historial de
-   Drive, solo cambia el nombre — en vez de crear uno nuevo y dejar duplicados. */
-async function buscarConMigracionDeNombre(nombreNuevo,nombreViejo,parentId){
-  var f=await buscarArchivoPorNombreEnCarpeta(nombreNuevo,parentId);
-  if(f)return f;
-  var viejo=await buscarArchivoPorNombreEnCarpeta(nombreViejo,parentId);
-  if(viejo){
-    try{await actualizarMetadatosDrive(viejo.id,{name:nombreNuevo});viejo.name=nombreNuevo;}
-    catch(err){console.warn('No se pudo renombrar '+nombreViejo+' a '+nombreNuevo+':',err.message);}
-    return viejo;
-  }
-  return null;
-}
-async function cargarArchivoDocumentalPersona(personaId,personaNombre){
-  var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
-  var nombreNuevo=nombreArchivoDocumental(personaId);
-  var f=await buscarConMigracionDeNombre(nombreNuevo,'archivo-documental.json',carpeta.id);
-  if(!f)return {file:null,carpeta:carpeta,bd:{version:1,personaId:String(personaId),personaNombre:personaNombre,actualizado:new Date().toISOString(),archivos:{}}};
-  var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(f.id)+'?alt=media');
-  if(!r.ok)throw new Error('No se pudo leer '+nombreNuevo+' de '+personaNombre);
-  var bd={}; try{bd=JSON.parse(await r.text())||{};}catch(e){throw new Error(nombreNuevo+' no contiene JSON válido');}
-  if(!bd.archivos)bd.archivos={}; return {file:f,carpeta:carpeta,bd:bd};
-}
 /* ===== BLOQUE E: CATÁLOGO POR PERSONA (construido directamente desde los sidecars) =====
    El catálogo (<ID>_catalogo.json) es el ÚNICO agregado por persona que se guarda en
    Drive — ya no existe <ID>_archivo-documental.json (v1.1) ni ningún <ID>_persona.json
@@ -1237,7 +1212,6 @@ for(var z=0;z<cajas.length;z++){
   for(var zz=0;zz<pp.length;zz++){var aa=pp[zz].clave&&MAPA_ALIAS_ALBUM?MAPA_ALIAS_ALBUM[pp[zz].clave]:null;if(aa){cc.albumesAsignados=cc.albumesAsignados||{};cc.albumesAsignados[pp[zz].clave]=aa;cc.personaAsignadaId=aa.personaId;cc.personaAsignadaNombre=aa.personaNombre;}}
   await cPut('cajas',cc);
 }
-PENDIENTES_HIDRATADOS=true;
 return lista;
 }
 async function eliminarPendienteAlbum(id){
@@ -2528,6 +2502,7 @@ try{
    ===================================================================== */
 var EXPLORADOR_PERSONA_ACTUAL=null;
 var EXPLORADOR_ARCHIVOS=[];
+var EXPLORADOR_SELECCION=[];
 function buscarPersonaParaExplorador(q){
 var cont=document.getElementById('resultadoBusquedaPersonaExplorador');
 if(!q||q.length<2){if(cont)cont.innerHTML='';return;}
@@ -2540,6 +2515,7 @@ cont.innerHTML=res.length?res.map(function(p){return '<span class="badge" style=
 }
 async function elegirPersonaExplorador(pid,nombre){
 EXPLORADOR_PERSONA_ACTUAL={id:pid,nombre:nombre};
+EXPLORADOR_SELECCION=[];
 document.getElementById('inputPersonaExplorador').value=nombre;
 document.getElementById('resultadoBusquedaPersonaExplorador').innerHTML='';
 document.getElementById('resultadoExploradorDetalle').style.display='none';
@@ -2562,13 +2538,18 @@ return;
 }
 var docs=EXPLORADOR_ARCHIVOS.filter(function(x){return x.esDocumento===true;});
 var fotos=EXPLORADOR_ARCHIVOS.filter(function(x){return x.esDocumento!==true;});
-var html='<h3>'+esc(EXPLORADOR_PERSONA_ACTUAL.nombre)+' — '+EXPLORADOR_ARCHIVOS.length+' archivo(s) <span style="font-weight:400;color:var(--muted);font-size:11px">('+docs.length+' documento(s), '+fotos.length+' fotografía(s)/vídeo(s))</span></h3>';
+var html='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h3>'+esc(EXPLORADOR_PERSONA_ACTUAL.nombre)+' — '+EXPLORADOR_ARCHIVOS.length+' archivo(s) <span style="font-weight:400;color:var(--muted);font-size:11px">('+docs.length+' documento(s), '+fotos.length+' fotografía(s)/vídeo(s))</span></h3><p style="font-size:11px;color:var(--muted);margin-top:4px">Marca las páginas en el orden que quieras para unirlas en un PDF: la primera seleccionada será la página 1, la segunda la página 2, etc.</p></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="unirSeleccionExplorador()"><i class="fa-solid fa-file-pdf"></i> Unir seleccionados en PDF</button><button class="btn ghost small" onclick="limpiarSeleccionExplorador()">Limpiar selección</button></div></div>';
+html+='<div id="resumenSeleccionExplorador" style="margin-top:8px;font-size:11px;color:var(--muted)"></div>';
 html+='<div class="duda-grid" style="margin-top:10px">';
 html+=EXPLORADOR_ARCHIVOS.map(function(el,idx){
 var cacheada=_miniaturaCacheSesion[el.driveFileId];
-return '<div class="duda-card" style="cursor:pointer" onclick="verDetalleExplorador('+idx+')">'+
+var pos=EXPLORADOR_SELECCION.indexOf(idx);
+var seleccionado=pos>=0;
+return '<div class="duda-card'+(seleccionado?' sel':'')+'" style="cursor:pointer" onclick="alternarSeleccionExplorador('+idx+')">'+
+'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span class="badge '+(seleccionado?'ok':'')+'">'+(seleccionado?'Página '+(pos+1):'Seleccionar')+'</span><span style="font-size:10px;color:var(--muted)">'+esc(el.tipo||'')+'</span></div>'+
 (cacheada?'<img class="duda-thumb" id="miniExp_'+idx+'" src="'+cacheada+'">':'<div class="duda-thumb" id="miniExp_'+idx+'" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-'+(el.esDocumento?'file':'image')+'" style="font-size:26px"></i></div>')+
-'<div class="duda-meta"><b>'+esc(el.nombreOriginal||'')+'</b><br>'+(el.esDocumento?'Documento':'Fotografía')+(el.ocrProcesado?' · OCR ✓':(el.esDocumento?' · OCR pendiente':''))+'</div></div>';
+'<div class="duda-meta"><b>'+esc(el.nombreOriginal||'')+'</b><br>'+(el.esDocumento?'Documento':'Fotografía')+(el.ocrProcesado?' · OCR ✓':(el.esDocumento?' · OCR pendiente':''))+'</div>'+
+'<div style="margin-top:8px"><button type="button" class="btn ghost small" onclick="event.stopPropagation();verDetalleExplorador('+idx+')"><i class="fa-solid fa-eye"></i> Ver detalle</button></div></div>';
 }).join('')+'</div>';
 cont.innerHTML=html;
 EXPLORADOR_ARCHIVOS.forEach(function(el,idx){
@@ -2580,6 +2561,128 @@ var img=document.getElementById('miniExp_'+idx);
 if(img&&img.tagName==='DIV'){img.outerHTML='<img class="duda-thumb" id="miniExp_'+idx+'" src="'+mini+'">';}
 }).catch(function(){});
 });
+actualizarResumenSeleccionExplorador();
+}
+function actualizarResumenSeleccionExplorador(){
+var el=document.getElementById('resumenSeleccionExplorador');
+if(!el)return;
+if(!EXPLORADOR_SELECCION.length){el.textContent='No hay archivos seleccionados.';return;}
+el.innerHTML='<b>'+EXPLORADOR_SELECCION.length+' seleccionado(s)</b>: '+EXPLORADOR_SELECCION.map(function(i,n){return (n+1)+'. '+esc(EXPLORADOR_ARCHIVOS[i].nombreOriginal||'');}).join(' · ');
+}
+function alternarSeleccionExplorador(idx){
+var p=EXPLORADOR_SELECCION.indexOf(idx);
+if(p>=0)EXPLORADOR_SELECCION.splice(p,1);else EXPLORADOR_SELECCION.push(idx);
+renderExploradorLista();
+}
+function limpiarSeleccionExplorador(){EXPLORADOR_SELECCION=[];renderExploradorLista();}
+/* ===== Unión de varios archivos (fotos y/o PDF) en un único PDF compuesto =====
+   Verifica primero que el PDF y su sidecar se han guardado correctamente en
+   Drive; solo entonces borra los originales y sus sidecars. Si algo falla
+   antes de esa comprobación, no se borra nada. Las imágenes se incrustan sin
+   recomprimir (cero pérdida de calidad); si alguna imagen seleccionada no es
+   JPG/PNG, se rechaza la unión en vez de convertir con pérdida. */
+async function crearPaginaImagenPDF(pdfDoc,blob,el){
+var bytes=await blob.arrayBuffer();
+var mime=String(blob.type||'').toLowerCase();
+var img;
+if(mime.indexOf('png')>=0||/\.png$/i.test(el.nombreOriginal||''))img=await pdfDoc.embedPng(bytes);
+else img=await pdfDoc.embedJpg(bytes);
+var w=Number(el.dimensiones&&el.dimensiones.ancho)||img.width;
+var h=Number(el.dimensiones&&el.dimensiones.alto)||img.height;
+var escala=72/150; // 150 ppp físicos sin alterar ni un píxel del original.
+var page=pdfDoc.addPage([Math.max(1,w*escala),Math.max(1,h*escala)]);
+page.drawImage(img,{x:0,y:0,width:w*escala,height:h*escala});
+return 1;
+}
+async function unirSeleccionExplorador(){
+if(!EXPLORADOR_PERSONA_ACTUAL)return;
+if(EXPLORADOR_SELECCION.length<2){toast('Selecciona al menos 2 archivos para unir.',true);return;}
+if(typeof PDFLib==='undefined'){toast('No se ha cargado el motor PDF. Comprueba la conexión y vuelve a cargar la página.',true);return;}
+var seleccion=EXPLORADOR_SELECCION.map(function(i){return EXPLORADOR_ARCHIVOS[i];});
+if(seleccion.some(function(x){return !x||!x.driveFileId||!['imagen','pdf'].includes(String(x.tipo||''));})){toast('Solo se pueden unir imágenes y PDF registrados.',true);return;}
+if(seleccion.some(function(x){return x.tipo==='imagen'&&!(/image\/(jpeg|jpg|png)/i.test(String((x.archivoDrive&&x.archivoDrive.mimeType)||''))||!/\.(jpe?g|png)$/i.test(String(x.nombreOriginal||'')));})){toast('Hay una imagen que no es JPG/PNG. Para garantizar cero pérdida de calidad, esta versión no convierte otros formatos.',true);return;}
+var nombre=prompt('Nombre del nuevo PDF (sin extensión):','documento-unido');
+if(nombre===null)return;
+nombre=String(nombre).trim().replace(/\.pdf$/i,'');
+if(!nombre){toast('El nombre no puede estar vacío.',true);return;}
+var nombreSalidaPDF=nombre+'.pdf',nombreSalidaJSON=nombre+'.json';
+var coincideOrigen=seleccion.some(function(x){return String(x.nombreOriginal||'').toLowerCase()===nombreSalidaPDF.toLowerCase()||String(nombreSidecarArchivo(x)||'').toLowerCase()===nombreSalidaJSON.toLowerCase();});
+if(coincideOrigen){toast('Ese nombre coincide con uno de los archivos o JSON originales. Elige otro nombre para no sobrescribir información.',true);return;}
+var yaExistePDF=await buscarArchivoPorNombreEnCarpeta(nombreSalidaPDF,(await carpetaDocumentosPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre)).id);
+var yaExisteJSON=await buscarArchivoPorNombreEnCarpeta(nombreSalidaJSON,(await carpetaDocumentosPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre)).id);
+if(yaExistePDF||yaExisteJSON){toast('Ya existe un archivo o JSON con ese nombre en la carpeta. Elige otro nombre.',true);return;}
+if(!confirm('Se creará un único PDF con '+seleccion.length+' archivos, en el orden seleccionado.\n\nSolo se borrarán los originales y sus JSON DESPUÉS de comprobar que el PDF y el nuevo JSON se han guardado correctamente.\n\n¿Continuar?'))return;
+var pid=EXPLORADOR_PERSONA_ACTUAL.id,pnombre=EXPLORADOR_PERSONA_ACTUAL.nombre;
+var carpeta=await carpetaDocumentosPersona(pid,pnombre);
+var pdfDoc=await PDFLib.PDFDocument.create();
+var fuentes=[];
+var paginas=0;
+try{
+  toast('Preparando PDF… no se borrará nada hasta terminar.');
+  for(var i=0;i<seleccion.length;i++){
+    var src=seleccion[i];
+    var blob=await descargarArchivoDrive(src.driveFileId);
+    var inicioPag=paginas+1;
+    if(src.tipo==='pdf'){
+      var srcDoc=await PDFLib.PDFDocument.load(await blob.arrayBuffer(),{ignoreEncryption:false});
+      var indices=srcDoc.getPageIndices();
+      var copias=await pdfDoc.copyPages(srcDoc,indices);
+      copias.forEach(function(p){pdfDoc.addPage(p);});
+      paginas+=copias.length;
+    }else{
+      paginas+=await crearPaginaImagenPDF(pdfDoc,blob,src);
+    }
+    fuentes.push({paginaInicial:inicioPag,paginas:paginas-inicioPag+1,archivo:JSON.parse(JSON.stringify(src))});
+  }
+  if(!pdfDoc.getPageCount())throw new Error('No se pudo crear ninguna página.');
+  var pdfBytes=await pdfDoc.save({useObjectStreams:false});
+  var pdfBlob=new Blob([pdfBytes],{type:'application/pdf'});
+  var subida=await subirBinarioADrive(nombreSalidaPDF,pdfBlob,'application/pdf',carpeta.id,'Documento compuesto creado por el Archivo documental familiar a partir de '+seleccion.length+' archivo(s). Conserva la procedencia y los JSON originales en su sidecar.');
+  if(!subida||!subida.id)throw new Error('Drive no devolvió el ID del PDF creado.');
+  var ocrPaginas=[];
+  var ocrTotal=[];
+  fuentes.forEach(function(f){
+    var sc=f.archivo||{};
+    if(sc.ocrTexto){ocrTotal.push(sc.ocrTexto);ocrPaginas.push({paginaInicial:f.paginaInicial,paginas:f.paginas,texto:sc.ocrTexto,confianza:sc.ocrConfianza||0});}
+  });
+  var nuevo={
+    nombreOriginal:nombre+'.pdf',nombreArchivo:nombre+'.pdf',tipo:'pdf',estado:'documento',esDocumento:true,
+    driveFileId:subida.id,rutaDrive:'DOCUMENTOS/'+pid+'/'+nombre+'.pdf',fecha:new Date().toISOString(),fechaEstimada:false,fuenteFecha:'composicion',
+    personaAsignadaId:String(pid),personaAsignadaNombre:pnombre,personas:[pnombre],etiquetas:[],albumesOrigen:[],
+    googlePhotosMetadata:null,googlePhotosDescription:'',googlePhotosTitle:'',personasEtiquetadasGoogle:[],
+    exif:{},dimensiones:null,archivoDrive:{tamano:Number(subida.size||pdfBlob.size||0),mimeType:'application/pdf',md5Checksum:subida.md5Checksum||null,creadoDrive:new Date().toISOString()},
+    ocrPendiente:false,ocrProcesado:ocrPaginas.length>0,ocrTexto:ocrTotal.join('\n\n--- PÁGINA/ORIGEN SIGUIENTE ---\n\n').slice(0,12000),
+    ocrConfianza:ocrPaginas.length?Math.max.apply(null,ocrPaginas.map(function(x){return Number(x.confianza||0);})):0,
+    ocrSugerencias:ocrTotal.join('\n').trim().length>=20?analizarTextoGenealogico(ocrTotal.join('\n'),pnombre):{campos:[],informativas:[]},
+    ocrHallazgos:generarHallazgosOCR(ocrTotal.join('\n'),ocrPaginas.length?Math.max.apply(null,ocrPaginas.map(function(x){return Number(x.confianza||0);})):0),
+    documentoCompuesto:true,
+    archivosOrigen:fuentes,
+    ocrPorPagina:ocrPaginas,
+    creadoAPartirDe:seleccion.length
+  };
+  await guardarSidecarArchivo(nuevo,carpeta.id,pnombre);
+  // Comprobación real: el PDF y su sidecar existen antes de tocar los originales.
+  var pdfCheck=await buscarArchivoPorNombreEnCarpeta(nombre+'.pdf',carpeta.id);
+  var jsonCheck=await buscarArchivoPorNombreEnCarpeta(nombre+'.json',carpeta.id);
+  if(!pdfCheck||!jsonCheck)throw new Error('El PDF o su JSON no aparecen en Drive tras guardarlos. Se conservan todos los originales.');
+  // Solo ahora se eliminan binarios y sidecars de origen.
+  var borrados=0;
+  for(var j=0;j<seleccion.length;j++){
+    var src2=seleccion[j];
+    await eliminarArchivoDrive(src2.driveFileId);
+    borrados++;
+    var side=await buscarArchivoPorNombreEnCarpeta(nombreSidecarArchivo(src2),carpeta.id);
+    if(side)await eliminarArchivoDrive(side.id);
+  }
+  await actualizarCatalogoPersona(pid,pnombre,carpeta);
+  EXPLORADOR_SELECCION=[];
+  EXPLORADOR_ARCHIVOS=await listarSidecarsDeCarpeta(carpeta.id);
+  renderExploradorLista();
+  toast('✓ PDF creado correctamente. '+borrados+' originales y sus JSON fueron sustituidos por el documento compuesto.');
+}catch(err){
+  console.error('Unión de documentos:',err);
+  toast('No se completó la unión: '+mensajeErrorHumano(err.message)+'. No se han borrado los originales si el fallo ocurrió antes de la fase de borrado.',true);
+}
 }
 function _fmtBytes(n){
 if(!n)return '—';
