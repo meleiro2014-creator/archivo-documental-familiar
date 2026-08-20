@@ -53,9 +53,6 @@ main{max-width:1080px;margin:0 auto;padding:18px 14px}
 .btn.ghost{background:transparent;color:var(--muted);border-color:var(--border)}
 .btn.ghost:hover{color:var(--accent);border-color:var(--accent)}
 .btn.small{padding:5px 10px;font-size:11px}
-.pb{width:100%;height:8px;background:var(--border);border-radius:99px;overflow:hidden;margin:6px 0}
-.pf{height:100%;background:var(--accent);border-radius:99px;transition:width .3s;width:0%}
-.pf.warn{background:var(--warn)}
 input,select{font-family:'Lato',sans-serif;font-size:13px;padding:7px 10px;border:2px solid var(--border);border-radius:8px;background:var(--card);color:var(--text)}
 input:focus,select:focus{outline:none;border-color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:12px}
@@ -316,7 +313,6 @@ var db=null, googleTokenClient=null, driveAccessToken=null, driveTokenExpira=0, 
 var VERSION_APP='v08.2 — origen silencioso, cajas limpias, sidecar nombre.json y OCR pendiente corregido (20/08/2026)';
 var CFG_ORIGEN_ID=null, CFG_DESTINO_ID='1PHLIt4B755m-r0XzEyAC-EU8h4bjSs_6', CFG_BASE_DATOS_ID='1ypCnDAd9jVeQPP3PAZPe-SBn1OIT05uC', CFG_BACKUP_ARBOL_NOMBRE='backup-arbol.json', CFG_REVISION_ID=null, CFG_FOTO_ID=null, CFG_DOCUMENTOS_ID=null;
 var CFG_OCR_ACTIVO=false, CFG_OCR_MAX_PAGINAS=3;
-var vistaCajaAbierta={};
 /* mapaAliasAlbum: {nombreAlbumNormalizado: {personaId, personaNombre}} — persistido en CFG.
    Los álbumes pendientes se guardan en IndexedDB (store 'pendientes') solo como metadatos:
    nombre, caja, clave y número de elementos. NO se guarda el binario. Al asignar una persona,
@@ -1008,7 +1004,6 @@ if(!tokenDriveValido())await conectarGoogleDrive();
 // y terminar mostrando simplemente "0 álbumes".
 var comprobacionOrigen=await comprobarCarpetaOrigenDrive();
 var carpetaOrigen=comprobacionOrigen.folder;
-var usuarioDrive=comprobacionOrigen.user;
 var identidadDrive=comprobacionOrigen.identity;
 
 // No dependemos de que Google acepte "name contains takeout" en la consulta.
@@ -2608,12 +2603,12 @@ if(!nombre){toast('El nombre no puede estar vacío.',true);return;}
 var nombreSalidaPDF=nombre+'.pdf',nombreSalidaJSON=nombre+'.json';
 var coincideOrigen=seleccion.some(function(x){return String(x.nombreOriginal||'').toLowerCase()===nombreSalidaPDF.toLowerCase()||String(nombreSidecarArchivo(x)||'').toLowerCase()===nombreSalidaJSON.toLowerCase();});
 if(coincideOrigen){toast('Ese nombre coincide con uno de los archivos o JSON originales. Elige otro nombre para no sobrescribir información.',true);return;}
-var yaExistePDF=await buscarArchivoPorNombreEnCarpeta(nombreSalidaPDF,(await carpetaDocumentosPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre)).id);
-var yaExisteJSON=await buscarArchivoPorNombreEnCarpeta(nombreSalidaJSON,(await carpetaDocumentosPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre)).id);
-if(yaExistePDF||yaExisteJSON){toast('Ya existe un archivo o JSON con ese nombre en la carpeta. Elige otro nombre.',true);return;}
-if(!confirm('Se creará un único PDF con '+seleccion.length+' archivos, en el orden seleccionado.\n\nSolo se borrarán los originales y sus JSON DESPUÉS de comprobar que el PDF y el nuevo JSON se han guardado correctamente.\n\n¿Continuar?'))return;
 var pid=EXPLORADOR_PERSONA_ACTUAL.id,pnombre=EXPLORADOR_PERSONA_ACTUAL.nombre;
 var carpeta=await carpetaDocumentosPersona(pid,pnombre);
+var yaExistePDF=await buscarArchivoPorNombreEnCarpeta(nombreSalidaPDF,carpeta.id);
+var yaExisteJSON=await buscarArchivoPorNombreEnCarpeta(nombreSalidaJSON,carpeta.id);
+if(yaExistePDF||yaExisteJSON){toast('Ya existe un archivo o JSON con ese nombre en la carpeta. Elige otro nombre.',true);return;}
+if(!confirm('Se creará un único PDF con '+seleccion.length+' archivos, en el orden seleccionado.\n\nSolo se borrarán los originales y sus JSON DESPUÉS de comprobar que el PDF y el nuevo JSON se han guardado correctamente.\n\n¿Continuar?'))return;
 var pdfDoc=await PDFLib.PDFDocument.create();
 var fuentes=[];
 var paginas=0;
