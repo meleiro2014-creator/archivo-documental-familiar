@@ -771,35 +771,72 @@ async function listarSidecarsDeCarpeta(carpetaId){
   return resultado;
 }
 function nombreCatalogoPersona(personaId){return String(personaId)+'_catalogo.json';}
+/* Filtro de legibilidad: descarta fragmentos de OCR mal reconocidos (ruido de símbolos,
+   letras sueltas sin sentido) para que la descripción del catálogo nunca muestre texto
+   ilegible. Exige que al menos el 85% de los caracteres sean letras, dígitos, espacios
+   o puntuación básica. */
+function textoLegible(t){
+  var s=String(t||'').trim();
+  if(!s)return '';
+  var permitidos=(s.match(/[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9\s.,;:()'"\-]/g)||[]).length;
+  if(s.length<3||permitidos/s.length<0.85)return '';
+  return s;
+}
 /* Descripción breve de un documento: prioriza las "informativas" que ya extrae el OCR
-   (frases legibles tipo "Posible padre: X"), y solo si no hay ninguna cae en un extracto
-   corto del texto OCR — nunca el texto completo. */
+   (frases legibles tipo "Posible padre: X"), y si no hay ninguna usa el resumen ya
+   filtrado por generarHallazgosOCR (frases completas ≥35 caracteres) en vez del texto
+   OCR en crudo — así nunca aparecen fragmentos ilegibles. Pasa siempre por el filtro de
+   legibilidad antes de devolverse. */
 function descripcionBreveDocumento(d){
   var informativas=((d.ocrSugerencias&&d.ocrSugerencias.informativas)||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
   if(informativas.length)return informativas.join(' · ');
-  var texto=String(d.ocrTexto||'').trim();
-  if(texto)return texto.length>150?texto.slice(0,150)+'…':texto;
+  var resumen=textoLegible((d.ocrHallazgos&&d.ocrHallazgos.resumen)||'');
+  if(resumen)return resumen.length>150?resumen.slice(0,150)+'…':resumen;
   return '';
 }
-/* Descripción breve de una fotografía: descripción de Google Fotos + etiquetas. */
+/* Descripción breve de una fotografía: descripción de Google Fotos + etiquetas,
+   pasadas por el filtro de legibilidad. */
 function descripcionBreveFotografia(f){
   var partes=[];
-  var desc=String(f.googlePhotosDescription||'').trim();
+  var desc=textoLegible(f.googlePhotosDescription||'');
   if(desc)partes.push(desc);
-  var etiquetas=(f.etiquetas||[]).map(function(x){return String(x||'').trim();}).filter(Boolean);
+  var etiquetas=(f.etiquetas||[]).map(function(x){return textoLegible(x);}).filter(Boolean);
   if(etiquetas.length)partes.push('Etiquetas: '+etiquetas.join(', '));
   return partes.join(' · ');
 }
+/* Etiqueta de un documento: el/los tipo(s) de documento que ya detecta el OCR
+   (p.ej. "Registro o partida civil/eclesiástica"), sin tocar Drive. */
+function etiquetaDocumento(d){
+  var tipos=((d.ocrHallazgos&&d.ocrHallazgos.tipos)||[]).map(function(x){return textoLegible(x);}).filter(Boolean);
+  return tipos.join(' · ');
+}
+/* Etiqueta de una fotografía: sus etiquetas ya existentes (título/descripción de Google
+   Fotos u otras). */
+function etiquetaFotografia(f){
+  return (f.etiquetas||[]).map(function(x){return textoLegible(x);}).filter(Boolean).join(' · ');
+}
+/* Lugar detectado en un documento: prioriza el lugar de nacimiento/defunción que ya
+   identifica analizarTextoGenealogico (más fiable, viene con el tipo); si no hay,
+   cae en el primer lugar genérico que detecta el OCR ampliado. Las fotografías no
+   llevan OCR, así que no tienen lugar detectado. */
+function lugarDetectadoDocumento(d){
+  var campos=(d.ocrSugerencias&&d.ocrSugerencias.campos)||[];
+  var deNacOMuerte=campos.filter(function(c){return c.campo==='LUGARNAC'||c.campo==='LUGARDEF';})
+    .map(function(c){return textoLegible(c.etiqueta+': '+c.valor);}).filter(Boolean);
+  if(deNacOMuerte.length)return deNacOMuerte.join(' · ');
+  var otros=((d.ocrHallazgos&&d.ocrHallazgos.lugares)||[]).map(function(x){return textoLegible(x);}).filter(Boolean);
+  return otros.length?otros[0]:'';
+}
 /* Convierte un sidecar (ya leído de Drive) en la entrada de catálogo de un documento —
-   persona, nombre de archivo, tipo, fecha y una descripción breve, nunca el texto OCR
-   completo. */
+   persona, nombre de archivo, tipo, etiqueta, lugar, fecha y una descripción breve,
+   nunca el texto OCR completo ni una referencia a Drive (ni enlace ni ID). */
 function entradaCatalogoDocumento(d,personaId,personaNombre){
-  return{id:d.driveFileId||d.id||null,personaId:String(personaId),persona:personaNombre,nombre:d.nombreOriginal||'',tipo:'documento',fecha:d.fecha||null,descripcion:descripcionBreveDocumento(d)};
+  return{personaId:String(personaId),persona:personaNombre,nombre:d.nombreOriginal||'',tipo:'documento',etiqueta:etiquetaDocumento(d),lugar:lugarDetectadoDocumento(d),fecha:d.fecha||null,descripcion:descripcionBreveDocumento(d)};
 }
 /* Convierte un sidecar (ya leído de Drive) en la entrada de catálogo de una fotografía
-   o vídeo. */
+   o vídeo — sin referencia a Drive (ni enlace ni ID). */
 function entradaCatalogoFotografia(f,personaId,personaNombre){
-  return{id:f.driveFileId||f.id||null,personaId:String(personaId),persona:personaNombre,nombre:f.nombreOriginal||'',tipo:(f.tipo==='video'?'video':'fotografia'),fecha:f.fecha||null,descripcion:descripcionBreveFotografia(f)};
+  return{personaId:String(personaId),persona:personaNombre,nombre:f.nombreOriginal||'',tipo:(f.tipo==='video'?'video':'fotografia'),etiqueta:etiquetaFotografia(f),lugar:'',fecha:f.fecha||null,descripcion:descripcionBreveFotografia(f)};
 }
 /* Construye el catálogo de una persona leyendo, uno a uno, los sidecars de su carpeta
    en Drive. No toca IndexedDB en ningún momento. */
