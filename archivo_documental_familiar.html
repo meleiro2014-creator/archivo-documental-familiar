@@ -2410,10 +2410,41 @@ async function obtenerMiniaturaDesdeDrive(fileId){
 async function actualizarResumenOCRPendiente(){
   try{
     var todos=await cAll('elementos');
-    var n=todos.filter(function(e){return e.esDocumento===true && e.ocrPendiente===true && e.driveFileId;}).length;
+    var pendientes=todos.filter(function(e){return e.esDocumento===true && e.ocrPendiente===true && e.driveFileId;});
     var el=document.getElementById('ocrPendienteResumen');
-    if(el)el.textContent=n+' documento(s) marcado(s) por el usuario con OCR pendiente.';
+    if(!el)return;
+    if(!pendientes.length){el.innerHTML='0 documento(s) marcado(s) por el usuario con OCR pendiente.';return;}
+    var html=pendientes.length+' documento(s) marcado(s) por el usuario con OCR pendiente:';
+    html+='<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">';
+    html+=pendientes.map(function(p){
+      var persona=(p.personas&&p.personas[0])||p.personaAsignadaNombre||'';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--bg,#faf6f0);border-radius:8px;padding:5px 9px">'+
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>'+esc(p.nombreOriginal||'')+'</b>'+(persona?' <span style="color:var(--muted)">('+esc(persona)+')</span>':'')+'</span>'+
+        '<button type="button" class="btn ghost small" style="flex:none" onclick="quitarOCRPendiente(\''+esc(p.id)+'\')" title="Deja de estar en la cola de OCR pendiente; no se le pasa OCR"><i class="fa-solid fa-xmark"></i> Quitar de pendientes</button>'+
+      '</div>';
+    }).join('');
+    html+='</div>';
+    el.innerHTML=html;
   }catch(e){}
+}
+/* Saca a un archivo concreto de la cola de "OCR pendiente" sin ejecutarle el
+   OCR — para cuando un documento concreto se resiste (se atasca una y otra
+   vez, o simplemente no interesa esperar) y no quieres que siga contando ni
+   que "Ejecutar OCR pendiente" lo vuelva a intentar cada vez. El archivo
+   sigue clasificado como documento y conserva cualquier texto OCR que ya
+   tuviera; solo deja de estar "pendiente". Se puede reactivar más tarde
+   volviendo a pulsar "Es documento" en Repasar carpeta, o desde el Explorador. */
+async function quitarOCRPendiente(id){
+  try{
+    var el=await cGet('elementos',id);
+    if(!el){toast('No se encontró el archivo',true);return;}
+    el.ocrPendiente=false;
+    el.ocrError='Quitado manualmente de la cola de OCR pendiente por el usuario. Sigue marcado como documento.';
+    await cPut('elementos',el);
+    await guardarSidecarArchivo(el,null,(el.personas&&el.personas[0])||el.personaAsignadaNombre||null);
+    await actualizarResumenOCRPendiente();
+    toast('«'+(el.nombreOriginal||'')+'» ya no está en la cola de OCR pendiente.');
+  }catch(err){toast('No se pudo actualizar: '+mensajeErrorHumano(err.message),true);}
 }
 /* BLOQUE D: solo procesa archivos con esDocumento:true y ocrPendiente:true.
    Nunca decide por su cuenta qué es documento: eso ya lo decidió el usuario
@@ -2777,6 +2808,7 @@ html+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size
 html+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)">Ver JSON completo del sidecar</summary><pre style="white-space:pre-wrap;font-size:11px;background:var(--bg);padding:10px;border-radius:8px;margin-top:6px">'+esc(JSON.stringify(el,null,2))+'</pre></details>';
 if(el.driveFileId)html+='<p style="margin-top:10px"><a class="btn small" target="_blank" href="https://drive.google.com/file/d/'+encodeURIComponent(el.driveFileId)+'/view"><i class="fa-brands fa-google-drive"></i> Abrir archivo original en Drive</a></p>';
 if(el.driveFileId&&(el.tipo==='imagen'||el.tipo==='pdf'))html+='<p style="margin-top:6px"><button class="btn ghost small" onclick="relanzarOcrExplorador('+idx+')"><i class="fa-solid fa-rotate"></i> Forzar OCR más profundo</button> <span style="font-size:11px;color:var(--muted)">Prueba más preparaciones de la imagen (contraste, binarizado) y se queda con el mejor resultado. El texto anterior se sobrescribe.</span></p>';
+if(el.esDocumento&&el.ocrPendiente)html+='<p style="margin-top:6px"><button class="btn ghost small" onclick="quitarOCRPendienteExplorador('+idx+')"><i class="fa-solid fa-xmark"></i> Quitar de OCR pendiente</button> <span style="font-size:11px;color:var(--muted)">Deja de estar en la cola de "Ejecutar OCR pendiente"; sigue siendo documento y conserva el texto que ya tuviera.</span></p>';
 html+='<div class="card" style="margin-top:12px;border-color:var(--warn,#c96536)"><h3 style="margin:0;font-size:14px"><i class="fa-solid fa-right-left"></i> Pasar este archivo a otra persona</h3>'+
 '<p style="font-size:11px;color:var(--muted);margin:6px 0 8px">Para cuando un archivo se asignó a la persona equivocada. Mueve el archivo original y su ficha (JSON) a la carpeta de la persona que elijas, y actualiza la ficha para que quede a su nombre. Si esa persona todavía no tiene carpeta en Drive, se crea sola. El catálogo de ambas personas se actualiza al terminar.</p>'+
 '<div class="ef-row"><div class="ef-field" style="max-width:280px"><span class="ef-label">Nueva persona</span><input id="inputPersonaDestinoMover_'+idx+'" placeholder="Escribe el nombre..." oninput="buscarPersonaParaMoverExplorador(this.value,'+idx+')" autocomplete="off"></div></div>'+
@@ -2861,6 +2893,24 @@ await guardarSidecarArchivo(el,carpeta.id,nombre);
 verDetalleExplorador(idx);
 toast('✓ OCR de '+el.nombreOriginal+' actualizado en Drive.');
 }catch(err){toast('No se pudo relanzar el OCR de '+el.nombreOriginal+'. '+mensajeErrorHumano(err.message),true);}
+}
+/* Igual que quitarOCRPendiente(), pero para el Explorador: aquí los archivos
+   vienen leídos directamente de los sidecars en Drive (EXPLORADOR_ARCHIVOS),
+   no de IndexedDB, y su .id es el driveFileId, no el id interno de la ficha —
+   así que no se puede reutilizar cGet/cPut('elementos', id) como en la lista
+   de "Analizar documentos". Se opera directamente sobre el objeto en memoria
+   y se guarda su sidecar en Drive. */
+async function quitarOCRPendienteExplorador(idx){
+  var el=EXPLORADOR_ARCHIVOS[idx];
+  if(!el||!EXPLORADOR_PERSONA_ACTUAL)return;
+  try{
+    el.ocrPendiente=false;
+    el.ocrError='Quitado manualmente de la cola de OCR pendiente por el usuario. Sigue marcado como documento.';
+    var carpeta=await carpetaDocumentosPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre);
+    await guardarSidecarArchivo(el,carpeta.id,EXPLORADOR_PERSONA_ACTUAL.nombre);
+    verDetalleExplorador(idx);
+    toast('«'+(el.nombreOriginal||'')+'» ya no está en la cola de OCR pendiente.');
+  }catch(err){toast('No se pudo actualizar: '+mensajeErrorHumano(err.message),true);}
 }
 /* ===== Registro de un archivo 100% contra Drive, sin IndexedDB =====
    Si el archivo YA tenía un sidecar en Drive (por ejemplo, registrado en otra
