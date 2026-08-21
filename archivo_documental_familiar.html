@@ -106,6 +106,9 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 #progresoGlobalBox .pg-track{height:12px;background:#eee7df;border-radius:99px;overflow:hidden}
 #progresoGlobalBox .pg-fill{height:100%;width:0%;background:#7b5a3c;transition:width .25s}
 #progresoGlobalBox .pg-foot{display:flex;justify-content:space-between;gap:12px;margin-top:7px;font-size:11px;color:#6f6258}
+#progresoGlobalBox .pg-skip{margin-top:9px;width:100%;padding:6px 10px;font-size:12px;border:1px solid #d9cdbf;border-radius:8px;background:#fbf7f2;color:#7b5a3c;cursor:pointer}
+#progresoGlobalBox .pg-skip:hover{background:#f3e9dd}
+#progresoGlobalBox .pg-skip:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body><div id="progresoGlobalBox">
@@ -113,6 +116,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
   <div class="pg-sub" id="pgSub">Preparando</div>
   <div class="pg-track"><div class="pg-fill" id="pgFill"></div></div>
   <div class="pg-foot"><span id="pgCount">0 de 0</span><span id="pgEta">Calculando tiempo restante…</span></div>
+  <button type="button" class="pg-skip" id="pgSkipBtn" onclick="solicitarSaltoOCR()"><i class="fa-solid fa-forward-step"></i> Saltar este documento y seguir con el siguiente</button>
 </div>
 <div class="toast-c" id="toastC"></div>
 <header>
@@ -321,11 +325,33 @@ var BASE_DATOS_CACHE=null, BASE_DATOS_FILE_ID=null;
 
 
 var PG={inicio:0,total:0,hechos:0,archivo:'',etapa:'',visible:false};
+/* ===== Saltar documento actual (botón en la barra de progreso) =====
+   Antes, si el OCR se atascaba en un documento (típicamente dentro de
+   Tesseract, reconociendo una página de un PDF), no había forma de seguir:
+   había que cerrar la pestaña y perder todo el progreso ya hecho.
+   OCR_SALTO_RESOLVER, cuando existe, apunta a la función que "gana" la
+   carrera (Promise.race) dentro de la prueba de OCR que esté en marcha en
+   ese momento, así que pulsar el botón la interrumpe al instante en vez de
+   esperar a que expire el límite de tiempo normal (60 s). */
+var OCR_SALTO_RESOLVER=null;
+var OCR_SALTO_PENDIENTE=false;
+function solicitarSaltoOCR(){
+  OCR_SALTO_PENDIENTE=true;
+  if(OCR_SALTO_RESOLVER){var r=OCR_SALTO_RESOLVER;OCR_SALTO_RESOLVER=null;r();}
+  var btn=document.getElementById('pgSkipBtn');if(btn){btn.disabled=true;btn.textContent='Saltando…';}
+  toast('Saltando al siguiente documento…');
+}
+function reiniciarBotonSaltoOCR(){
+  OCR_SALTO_PENDIENTE=false;OCR_SALTO_RESOLVER=null;
+  var btn=document.getElementById('pgSkipBtn');
+  if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-forward-step"></i> Saltar este documento y seguir con el siguiente';}
+}
 function mostrarProgresoGlobal(total,hechos,archivo,etapa){
   PG.total=Math.max(0,Number(total)||0);PG.hechos=Math.max(0,Number(hechos)||0);
   if(!PG.inicio)PG.inicio=Date.now();
   PG.archivo=archivo||'';PG.etapa=etapa||'Procesando';
   PG.visible=true;
+  reiniciarBotonSaltoOCR();
   var box=document.getElementById('progresoGlobalBox');if(!box)return;
   box.style.display='block';
   var pct=PG.total?Math.min(100,Math.round(PG.hechos/PG.total*100)):0;
@@ -345,6 +371,7 @@ function mostrarProgresoGlobal(total,hechos,archivo,etapa){
 function ocultarProgresoGlobal(){
   var box=document.getElementById('progresoGlobalBox');if(box)box.style.display='none';
   PG={inicio:0,total:0,hechos:0,archivo:'',etapa:'',visible:false};
+  reiniciarBotonSaltoOCR();
 }
 /* Solo cambia la línea de detalle (pgSub) y, si se indica, la etapa del
    título — nunca el % ni el "X de Y", que siguen midiendo documentos
@@ -1641,10 +1668,26 @@ if(!tesseractWorkerPromise)tesseractWorkerPromise=Tesseract.createWorker('spa+en
 });
 return tesseractWorkerPromise;
 }
+/* Reinicia el worker de Tesseract cuando una prueba se ha quedado colgada
+   (por tiempo límite o porque el usuario pulsó "Saltar"). Es necesario:
+   Tesseract.js procesa las llamadas a recognize() en cola dentro del mismo
+   worker, así que si una se queda atascada de verdad (no solo lenta), todas
+   las pruebas siguientes —incluida la del documento siguiente— se quedarían
+   esperando detrás de ella para siempre, aunque nosotros ya hayamos
+   "abandonado" esa promesa por nuestro lado. Terminar el worker y dejar que
+   se cree uno nuevo en la próxima llamada libera esa cola. */
+function reiniciarTesseractWorker(){
+var vieja=tesseractWorkerPromise;
+tesseractWorkerPromise=null;
+if(vieja)vieja.then(function(w){try{w.terminate();}catch(e){}}).catch(function(){});
+}
 async function ocrConTiempoLimite(promise,ms){
 var limite=new Promise(function(resolve){setTimeout(function(){resolve({__timeout:true});},ms||90000);});
-var r=await Promise.race([promise,limite]);
-if(r&&r.__timeout)throw new Error('OCR superó el tiempo límite y se continúa con la siguiente prueba');
+var salto=new Promise(function(resolve){OCR_SALTO_RESOLVER=function(){resolve({__salto:true});};});
+var r=await Promise.race([promise,limite,salto]);
+OCR_SALTO_RESOLVER=null;
+if(r&&r.__salto){reiniciarTesseractWorker();throw new Error('__SALTO_USUARIO__');}
+if(r&&r.__timeout){reiniciarTesseractWorker();throw new Error('OCR superó el tiempo límite y se continúa con la siguiente prueba');}
 return r;
 }
 function canvasToBlob(c){return new Promise(function(res){c.toBlob(res,'image/png');});}
@@ -1712,10 +1755,13 @@ var mejor={text:'',confidence:0,score:-1},historial=[];
 var modos=modoRapido?[6,11]:[6,11];
 var totalPruebas=variantes.length*modos.length,pruebaActual=0;
 for(var i=0;i<variantes.length;i++){
+  if(OCR_SALTO_PENDIENTE)break;
   for(var mi=0;mi<modos.length;mi++){
+    if(OCR_SALTO_PENDIENTE)break;
     var psm=modos[mi];
     pruebaActual++;
     if(opciones.onProgreso)opciones.onProgreso('prueba '+pruebaActual+'/'+totalPruebas+' ('+variantes[i].name+', modo '+psm+')');
+    worker=await obtenerTesseractWorker(); // por si una prueba anterior tuvo que reiniciar el worker
     try{if(worker.setParameters)await worker.setParameters({tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1'});}catch(e){}
     try{
       var r=await ocrConTiempoLimite(worker.recognize(variantes[i].blob),60000);
@@ -1723,7 +1769,10 @@ for(var i=0;i<variantes.length;i++){
       var v=valorarOCRResultado(r);v.variante=variantes[i].name;v.psm=psm;
       if(v.text)historial.push(v);
       if(v.score>mejor.score)mejor=v;
-    }catch(e){console.warn('Prueba OCR falló',variantes[i].name,'PSM',psm,e.message);}
+    }catch(e){
+      if(e&&e.message==='__SALTO_USUARIO__')break;
+      console.warn('Prueba OCR falló',variantes[i].name,'PSM',psm,e.message);
+    }
   }
 }
 historial.sort(function(a,b){return b.score-a.score;});
@@ -1738,6 +1787,7 @@ if(typeof pdfjsLib!=='undefined'&&pdfjsLib.GlobalWorkerOptions&&!pdfjsLib.Global
 var buf=await blob.arrayBuffer(),pdf=await pdfjsLib.getDocument({data:buf}).promise,textoTotal='',hist=[];
 var maxPag=Math.min(pdf.numPages,CFG_OCR_MAX_PAGINAS||3);
 for(var i=1;i<=maxPag;i++){
+if(OCR_SALTO_PENDIENTE)break;
 if(opciones.onProgreso)opciones.onProgreso('página '+i+' de '+maxPag);
 var page=await pdf.getPage(i),contenido=await page.getTextContent(),textoPagina=contenido.items.map(function(it){return it.str;}).join(' ');
 if(textoPagina.trim().length>30){textoTotal+=textoPagina+'\n';}
@@ -1799,7 +1849,12 @@ return elemento;
 }
 if(!CFG_OCR_ACTIVO){console.log('OCR omitido: el interruptor general de OCR está desactivado en Configuración.');return elemento;}
 if(!elemento.driveFileId){elemento.ocrError='No se pudo ejecutar OCR: el archivo no tiene copia en Drive.';return elemento;}
-var blob=await descargarArchivoDrive(elemento.driveFileId);
+// La descarga también puede quedarse colgada (red lenta o caída) y antes no
+// había forma de saltarla; ahora compite igualmente contra el botón "Saltar".
+var blob=await ocrConTiempoLimite(descargarArchivoDrive(elemento.driveFileId),45000).catch(function(err){
+  if(err&&err.message==='__SALTO_USUARIO__')throw err;
+  throw new Error('No se pudo descargar el archivo desde Drive: '+(err&&err.message||err));
+});
 function progresoDoc(etapa){return function(detalle){actualizarSubEstadoProgresoGlobal(detalle,etapa);};}
 var rapido=await extraerTextoOCRConInfo(blob,elemento.tipo,{rapido:true,onProgreso:progresoDoc('OCR rápido')});
 var info=rapido;
@@ -1812,20 +1867,26 @@ var textoRapido=String(rapido.text||'').replace(/\s/g,'');
 // claramente bien (texto suficiente Y confianza alta).
 var rapidoYaFuerte=textoRapido.length>=35&&Number(rapido.confidence||0)>=75;
 var probableTextoUtil=(elemento.tipo==='pdf'||!rapidoYaFuerte);
-if(probableTextoUtil){
+if(probableTextoUtil&&!OCR_SALTO_PENDIENTE){
 var profundo=await extraerTextoOCRConInfo(blob,elemento.tipo,{rapido:false,onProgreso:progresoDoc('OCR profundo')});
 if(profundo.text&&(!rapido.text||profundo.confidence>=rapido.confidence||profundo.text.length>rapido.text.length))info=profundo;
 }
-elemento.ocrProcesado=true;
-elemento.ocrPendiente=false;
-elemento.ocrCompletado=true;
+// Si el usuario pulsó "Saltar", este documento se deja marcado como pendiente
+// (para poder reintentarlo más tarde) en vez de darlo por completado — pero
+// se guarda igualmente cualquier texto parcial que ya se hubiera obtenido,
+// para no tirar el trabajo hecho hasta el momento del salto.
+var saltado=OCR_SALTO_PENDIENTE;
+elemento.ocrProcesado=!saltado;
+elemento.ocrPendiente=saltado;
+elemento.ocrCompletado=!saltado;
 elemento.ocrTexto=String(info.text||'').slice(0,12000);
 elemento.ocrConfianza=Number(info.confidence||0);
 elemento.ocrHistorial=info.ocrHistorial||[];
 elemento.ocrSugerencias=elemento.ocrTexto.trim().length>=20?analizarTextoGenealogico(elemento.ocrTexto, (elemento.personas&&elemento.personas[0])||elemento.personaAsignadaNombre||''):{campos:[],informativas:[]};
 elemento.ocrHallazgos=generarHallazgosOCR(elemento.ocrTexto,elemento.ocrConfianza);
 elemento.ocrAnalizadoEn=new Date().toISOString();
-delete elemento.ocrError;
+if(saltado)elemento.ocrError='Saltado por el usuario antes de completarse (texto parcial guardado si se obtuvo alguno). Vuelve a ejecutar el OCR pendiente para reintentarlo.';
+else delete elemento.ocrError;
 await cPut('elementos',elemento);
 // Actualiza (no recrea) el sidecar del archivo con el resultado del OCR. No se
 // conoce aquí la carpeta de destino, así que guardarSidecarArchivo consulta a
@@ -2364,15 +2425,21 @@ async function analizarOCRPendiente(){
   if(!CFG_OCR_ACTIVO){toast('El interruptor de OCR está desactivado en Configuración. Actívalo para poder ejecutarlo.',true);return;}
   if(!confirm('Se ejecutará el OCR de '+lista.length+' documento(s) marcado(s) como tal por ti. ¿Continuar?'))return;
   PG.inicio=Date.now();
-  var hechos=0;
+  var hechos=0,saltados=0;
   for(var i=0;i<lista.length;i++){
     var el=lista[i];
     try{
       mostrarProgresoGlobal(lista.length,hechos,el.nombreOriginal,'OCR rápido');
       await ejecutarOCR(el);
+      if(OCR_SALTO_PENDIENTE)saltados++;
     }catch(err){
-      console.error('OCR falló para',el.nombreOriginal,err);
-      el.ocrError=String(err&&err.message||err);
+      if(err&&err.message==='__SALTO_USUARIO__'){
+        saltados++;
+        el.ocrError='Saltado por el usuario antes de completarse. Vuelve a ejecutar el OCR pendiente para reintentarlo.';
+      }else{
+        console.error('OCR falló para',el.nombreOriginal,err);
+        el.ocrError=String(err&&err.message||err);
+      }
       await cPut('elementos',el);
     }
     hechos++;
@@ -2382,7 +2449,7 @@ async function analizarOCRPendiente(){
   await actualizarResumenOCRPendiente();
   await recalcularContadoresDudas();
   if(REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id)await analizarDocumentosExistentes();
-  toast('OCR terminado: '+hechos+' documento(s). Cada ficha se ha guardado en Drive según se completaba su OCR.');
+  toast('OCR terminado: '+hechos+' documento(s) procesado(s)'+(saltados?', '+saltados+' saltado(s) manualmente (quedan pendientes para reintentar)':'')+'. Cada ficha se ha guardado en Drive según se completaba su OCR.');
 }
 /* ===== BLOQUE D: "Analizar documentos existentes" (repasar carpeta) =====
    El usuario elige la persona a repasar; el programa lee, en Drive, la carpeta
