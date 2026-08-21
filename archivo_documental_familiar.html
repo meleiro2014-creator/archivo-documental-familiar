@@ -132,6 +132,13 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div class="hero"><h1>Panel de importación</h1><p>Punto de partida. Aquí ves de un vistazo qué cajas (álbumes de Google Fotos) hay detectadas, en qué estado está cada una, y cuánto llevas ya copiado a Drive. No hace falta hacer nada aquí salvo pulsar «Actualizar» de vez en cuando; el trabajo de verdad se hace en las pestañas Cajas y Analizar documentos.</p>
 <div style="text-align:center;margin-top:8px"><span class="drive-status" id="driveStatusPill" onclick="accionConectar()"><span class="dot" id="driveDot"></span><span id="driveTxt">Comprobando Google Drive...</span></span></div>
 </div>
+<div class="card" id="cardPersonaDefecto" style="border-color:var(--accent)">
+<h3 style="margin:0"><i class="fa-solid fa-user-check" style="color:var(--accent)"></i> Persona con la que estás trabajando</h3>
+<p style="font-size:12px;color:var(--muted);margin:8px 0">Se usa como propuesta automática al entrar en Cajas, Analizar documentos y Explorador, para no tener que elegirla cada vez. Puedes cambiarla aquí o en cualquiera de esas pantallas — el cambio se aplica en todas.</p>
+<div id="personaDefectoActual" style="font-size:13px;margin-bottom:8px"><i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna elegida todavía</span></div>
+<div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Cambiar persona por defecto</span><input id="inputPersonaDefecto" placeholder="Escribe el nombre..." oninput="buscarPersonaParaDefecto(this.value)" autocomplete="off"></div></div>
+<div id="resultadoBusquedaPersonaDefecto" style="font-size:11px"></div>
+</div>
 <div class="card" id="cardPrimerosPasos" style="border-color:var(--accent)">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
 <h3 style="margin:0"><i class="fa-solid fa-list-check" style="color:var(--accent)"></i> Primeros pasos (si es la primera vez que usas esto)</h3>
@@ -147,15 +154,6 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <li><b>Ejecuta el OCR pendiente</b> — cuando quieras, lanza el OCR de los documentos. Al terminar cada documento, su ficha queda guardada con el texto y los hallazgos.</li>
 <li><b>Genera el catálogo cuando quieras</b> — pulsa "Generar catálogo de esta persona" al final del flujo; no hace falta esperar a que termine el OCR.</li>
 </ol>
-</div>
-<div class="card" id="cardPendientesSync" style="display:none;border-color:var(--accent)">
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-<h3 style="margin:0"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--accent)"></i> Sincronizar registros con Drive</h3>
-<button class="btn small" onclick="sincronizarTodasPendientes()"><i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar todas</button>
-</div>
-<p style="font-size:12px;color:var(--muted);margin:8px 0 4px">Sus archivos ya están copiados y a salvo en Drive. Esto solo guarda la ficha con la información de cada uno (fechas, OCR, etiquetas) — de una sola vez por persona, para que nunca se quede a medias ni se frene con álbumes grandes. Al terminar, sabrás con seguridad si ha ido bien o si algo ha fallado.</p>
-<div id="resumenPendientesSync" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
-<div id="listaPendientesSync"></div>
 </div>
 <div class="metrics">
 <div class="metric"><div class="n" id="mCajasPend">-</div><div class="l">Cajas pendientes</div></div>
@@ -348,11 +346,22 @@ function ocultarProgresoGlobal(){
   var box=document.getElementById('progresoGlobalBox');if(box)box.style.display='none';
   PG={inicio:0,total:0,hechos:0,archivo:'',etapa:'',visible:false};
 }
+/* Solo cambia la línea de detalle (pgSub) y, si se indica, la etapa del
+   título — nunca el % ni el "X de Y", que siguen midiendo documentos
+   completos. Sirve para que la barra no parezca congelada mientras se
+   procesa UN documento largo (un PDF de varias páginas, por ejemplo): antes
+   no había ningún aviso entre el inicio y el final de cada documento. */
+function actualizarSubEstadoProgresoGlobal(detalle,etapa){
+  if(!PG.visible)return;
+  if(etapa){PG.etapa=etapa;var pct=PG.total?Math.min(100,Math.round(PG.hechos/PG.total*100)):0;var t=document.getElementById('pgTitle');if(t)t.textContent=PG.etapa+' · '+pct+'%';}
+  var sub=document.getElementById('pgSub');
+  if(sub)sub.textContent=(PG.archivo||'')+(detalle?' — '+detalle:'');
+}
 
 function toast(m,e){var c=document.getElementById('toastC'),t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;c.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},4000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtBytes(n){if(!n)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function sv(v){['panel','cajas','analizar','explorador','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel')renderPanel();if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}}
+function sv(v){['panel','cajas','analizar','explorador','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel'){renderPanel();renderPersonaDefectoPanel();}if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}if(v==='explorador')precargarPersonaDefectoExplorador();}
 
 /* ===== BASE DE DATOS LOCAL (propia, independiente de la de la app de árbol) ===== */
 function oDB(){return new Promise(function(res,rej){var r=indexedDB.open('ArchivoDocumentalFamiliar_v1',1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('cajas'))d.createObjectStore('cajas',{keyPath:'id'});if(!d.objectStoreNames.contains('elementos'))d.createObjectStore('elementos',{keyPath:'id'});if(!d.objectStoreNames.contains('cfg'))d.createObjectStore('cfg',{keyPath:'id'});if(!d.objectStoreNames.contains('pendientes'))d.createObjectStore('pendientes',{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res(db);};r.onerror=function(){rej(r.error);};});}
@@ -807,104 +816,22 @@ async function actualizarCatalogoPersonaDesdeLocal(elemento){
   var carpeta=await carpetaDocumentosPersona(personaId,personaNombre);
   await actualizarCatalogoPersona(personaId,personaNombre,carpeta);
 }
-/* =====================================================================
-   SINCRONIZACIÓN MANUAL DEL REGISTRO CON DRIVE (botón, no automático)
-   Reconstruye el catálogo de una persona leyendo, uno a uno, los sidecars que
-   hay en su carpeta en Drive — no de ningún <ID>_archivo-documental.json ni
-   <ID>_persona.json intermedio: el registro completo de cada archivo
-   (metadatos + OCR) vive en su propio sidecar en Drive, que es la fuente de
-   verdad, así que aquí basta con leerlos todos y volcar el catálogo.
-   ===================================================================== */
-async function sincronizarPersona(personaId,personaNombre){
-  // Reconstruye el catálogo leyendo, uno a uno, los sidecars que hay en la
-  // carpeta de la persona en Drive. Así el resultado es idéntico venga de
-  // donde venga (mismo navegador, otro navegador, u otro día).
-  var r=await reconstruirCatalogoDesdeDrive(personaId,personaNombre);
-  // Si por compatibilidad quedan elementos locales marcados como pendientes,
-  // los limpiamos (es solo un aviso en pantalla, ya no afecta a lo que se graba).
-  try{
-    var locales=await cAll('elementos');
-    var deEsta=locales.filter(function(e){return e && String(e.personaAsignadaId)===String(personaId);});
-    for(var i=0;i<deEsta.length;i++){deEsta[i].sincronizadoDrive=true;await cPut('elementos',deEsta[i]);}
-  }catch(e){/* si no hay IndexedDB o está vacía, no pasa nada: Drive ya quedó al día */}
-  return r;
-}
-/* La función guardarJsonPersonaActualRepaso() (botón "Guardar JSON de esta
-   persona ahora", sin condiciones) se eliminó: dejaba grabar el catálogo con
-   documentos que todavía no tenían OCR, saltándose el único camino que debe
-   existir para ese archivo — el botón "Sincronizar registro", que sí
-   comprueba que no quede OCR pendiente. */
-async function obtenerPersonasPendientesSincronizar(){
-  var locales=await cAll('elementos');
-  var mapa={};
-  locales.forEach(function(e){
-    if(e && e.sincronizadoDrive===false && e.personaAsignadaId && e.estado!=='descartado'){
-      var pid=String(e.personaAsignadaId);
-      if(!mapa[pid])mapa[pid]={personaId:pid,nombre:(e.personas&&e.personas[0])||e.personaAsignadaNombre||('Persona '+pid),count:0};
-      mapa[pid].count++;
-    }
-  });
-  return Object.keys(mapa).map(function(k){return mapa[k];}).sort(function(a,b){return b.count-a.count;});
-}
-async function renderPendientesSincronizar(){
-  var card=document.getElementById('cardPendientesSync'),cont=document.getElementById('listaPendientesSync');
-  if(!card||!cont)return;
-  var pendientes=await obtenerPersonasPendientesSincronizar();
-  if(!pendientes.length){card.style.display='none';return;}
-  card.style.display='block';
-  var total=pendientes.reduce(function(s,p){return s+p.count;},0);
-  document.getElementById('resumenPendientesSync').textContent=pendientes.length+' persona(s), '+total+' elemento(s) sin sincronizar.';
-  cont.innerHTML=pendientes.map(function(p){
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px"><div><b>'+esc(p.nombre)+'</b><br><span style="font-size:11px;color:var(--muted)">'+p.count+' elemento(s) sin sincronizar</span></div><button class="btn small" onclick="sincronizarUnaPersonaUI(\''+esc(p.personaId)+'\',\''+esc(p.nombre).replace(/'/g,"&#39;")+'\')"><i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar</button></div>';
-  }).join('');
-}
+/* La generación/actualización del catálogo por persona vive ahora solo en
+   "Analizar documentos" (botón "Generar catálogo de esta persona"), que llama
+   directamente a actualizarCatalogoPersona(). Antes existía además, en el
+   Panel de importación, un aviso de "personas pendientes de sincronizar" con
+   sus propios botones ("Sincronizar"/"Sincronizar todas"): hacía exactamente
+   lo mismo (reconstruir el catálogo desde los sidecars de Drive) pero
+   duplicaba el flujo y confundía sobre qué botón usar. Se ha quitado esa
+   tarjeta del Panel y las funciones que solo ella usaba
+   (sincronizarPersona, obtenerPersonasPendientesSincronizar,
+   renderPendientesSincronizar, sincronizarUnaPersonaUI,
+   sincronizarTodasPendientes). El campo sincronizadoDrive de cada elemento
+   sigue existiendo y actualizándose (lo pone a true guardarFichaAlMomento y
+   generarCatalogoElegidaRepaso), pero ya no hay ningún aviso en pantalla que
+   dependa de él. */
 function _progresoSyncEls(){
   return{ov:document.getElementById('progresoAsignacionOverlay'),fill:document.getElementById('progresoAsignacionFill'),estado:document.getElementById('progresoAsignacionEstado'),cuenta:document.getElementById('progresoAsignacionCuenta'),pct:document.getElementById('progresoAsignacionPorcentaje'),archivo:document.getElementById('progresoAsignacionArchivo')};
-}
-async function sincronizarUnaPersonaUI(personaId,personaNombre){
-  var e=_progresoSyncEls();
-  if(e.ov)e.ov.style.display='flex';
-  if(e.estado)e.estado.innerHTML='<span class="spinner"></span>Sincronizando '+esc(personaNombre)+'…';
-  if(e.archivo)e.archivo.textContent='';if(e.fill)e.fill.style.width='40%';if(e.cuenta)e.cuenta.textContent='';if(e.pct)e.pct.textContent='';
-  try{
-    var r=await sincronizarPersona(personaId,personaNombre);
-    if(e.fill)e.fill.style.width='100%';if(e.estado)e.estado.textContent='✓ Sincronizado';
-    setTimeout(function(){if(e.ov)e.ov.style.display='none';},700);
-    toast('✓ '+personaNombre+' sincronizado correctamente ('+r.sincronizados+' elemento(s)). No ha fallado nada.');
-  }catch(err){
-    if(e.ov)e.ov.style.display='none';
-    alert('No se ha podido sincronizar el registro de '+personaNombre+'.\n\n'+mensajeErrorHumano(err.message)+'\n\nLos archivos siguen a salvo en Drive; solo falta guardar su registro. Puedes reintentarlo cuando quieras con el mismo botón.');
-  }
-  await renderPendientesSincronizar();
-  await renderPanel();
-}
-async function sincronizarTodasPendientes(){
-  var pendientes=await obtenerPersonasPendientesSincronizar();
-  if(!pendientes.length){toast('No hay nada pendiente de sincronizar');return;}
-  if(!confirm('Se va a sincronizar el registro de '+pendientes.length+' persona(s). ¿Continuar?'))return;
-  var e=_progresoSyncEls();
-  if(e.ov)e.ov.style.display='flex';
-  var ok=0,fallidas=[];
-  for(var i=0;i<pendientes.length;i++){
-    var p=pendientes[i];
-    if(e.fill)e.fill.style.width=Math.round(i/pendientes.length*100)+'%';
-    if(e.cuenta)e.cuenta.textContent=i+' de '+pendientes.length;
-    if(e.pct)e.pct.textContent=Math.round(i/pendientes.length*100)+' %';
-    if(e.archivo)e.archivo.textContent=p.nombre;
-    if(e.estado)e.estado.innerHTML='<span class="spinner"></span>Sincronizando '+esc(p.nombre)+'…';
-    try{await sincronizarPersona(p.personaId,p.nombre);ok++;}
-    catch(err){fallidas.push(p.nombre+': '+mensajeErrorHumano(err.message));}
-  }
-  if(e.fill)e.fill.style.width='100%';if(e.estado)e.estado.textContent='✓ Sincronización terminada';
-  setTimeout(function(){if(e.ov)e.ov.style.display='none';},900);
-  if(fallidas.length){
-    alert('Sincronización terminada.\n\n'+ok+' de '+pendientes.length+' persona(s) sincronizada(s) correctamente.\n\n'+fallidas.length+' con error (los archivos siguen a salvo en Drive, solo falta su registro — reinténtalo cuando quieras):\n\n'+fallidas.join('\n'));
-    toast(ok+' sincronizada(s), '+fallidas.length+' con error',true);
-  }else{
-    toast('✓ Las '+ok+' persona(s) se han sincronizado correctamente. No ha fallado nada.');
-  }
-  await renderPendientesSincronizar();
-  await renderPanel();
 }
 
 async function calcularMD5(blob){
@@ -1783,9 +1710,12 @@ var worker=await obtenerTesseractWorker();
 var variantes=await crearVariantesOCR(blob,modoRapido);
 var mejor={text:'',confidence:0,score:-1},historial=[];
 var modos=modoRapido?[6,11]:[6,11];
+var totalPruebas=variantes.length*modos.length,pruebaActual=0;
 for(var i=0;i<variantes.length;i++){
   for(var mi=0;mi<modos.length;mi++){
     var psm=modos[mi];
+    pruebaActual++;
+    if(opciones.onProgreso)opciones.onProgreso('prueba '+pruebaActual+'/'+totalPruebas+' ('+variantes[i].name+', modo '+psm+')');
     try{if(worker.setParameters)await worker.setParameters({tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1'});}catch(e){}
     try{
       var r=await ocrConTiempoLimite(worker.recognize(variantes[i].blob),60000);
@@ -1800,18 +1730,27 @@ historial.sort(function(a,b){return b.score-a.score;});
 return{text:mejor.text,confidence:mejor.confidence,ocrHistorial:historial.slice(0,12)};
 }catch(err){console.warn('OCR de imagen omitido:',err.message);return{text:'',confidence:0,ocrHistorial:[],error:err.message};}
 }
-async function ocrPdfBlob(blob){
+async function ocrPdfBlob(blob,opciones){
+opciones=opciones||{};
+var modoRapido=!!opciones.rapido;
 try{
 if(typeof pdfjsLib!=='undefined'&&pdfjsLib.GlobalWorkerOptions&&!pdfjsLib.GlobalWorkerOptions.workerSrc)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 var buf=await blob.arrayBuffer(),pdf=await pdfjsLib.getDocument({data:buf}).promise,textoTotal='',hist=[];
 var maxPag=Math.min(pdf.numPages,CFG_OCR_MAX_PAGINAS||3);
 for(var i=1;i<=maxPag;i++){
+if(opciones.onProgreso)opciones.onProgreso('página '+i+' de '+maxPag);
 var page=await pdf.getPage(i),contenido=await page.getTextContent(),textoPagina=contenido.items.map(function(it){return it.str;}).join(' ');
 if(textoPagina.trim().length>30){textoTotal+=textoPagina+'\n';}
 else{
 var viewport=page.getViewport({scale:2.2}),canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;
 await page.render({canvasContext:canvas.getContext('2d'),viewport:viewport}).promise;
-var blobPagina=await new Promise(function(res){canvas.toBlob(res,'image/png');}),rr=await ocrImagenBlobConInfo(blobPagina,{rapido:false});
+var blobPagina=await new Promise(function(res){canvas.toBlob(res,'image/png');});
+// Antes esto siempre usaba la pasada profunda completa (4 variantes × 2 modos),
+// ignorase lo que hubiera pedido quien llama — así que el OCR "rápido" de un PDF
+// tardaba EXACTAMENTE igual que el "profundo", y ejecutarOCR() acababa haciendo
+// el mismo trabajo pesado dos veces seguidas para cada documento PDF. Ahora
+// respeta modoRapido igual que ya hacía la rama de imágenes sueltas.
+var rr=await ocrImagenBlobConInfo(blobPagina,{rapido:modoRapido,onProgreso:opciones.onProgreso?function(txt){opciones.onProgreso('página '+i+' de '+maxPag+' — '+txt);}:null});
 textoTotal+=(rr.text||'')+'\n';hist=hist.concat(rr.ocrHistorial||[]);
 }
 }
@@ -1820,7 +1759,7 @@ return{text:textoTotal.trim(),confidence:hist.length?Math.max.apply(null,hist.ma
 }
 async function extraerTextoOCRConInfo(blob,tipo,opciones){
 if(tipo==='imagen')return await ocrImagenBlobConInfo(blob,opciones);
-if(tipo==='pdf')return await ocrPdfBlob(blob);
+if(tipo==='pdf')return await ocrPdfBlob(blob,opciones);
 return{text:'',confidence:0,ocrHistorial:[]};
 }
 
@@ -1861,7 +1800,8 @@ return elemento;
 if(!CFG_OCR_ACTIVO){console.log('OCR omitido: el interruptor general de OCR está desactivado en Configuración.');return elemento;}
 if(!elemento.driveFileId){elemento.ocrError='No se pudo ejecutar OCR: el archivo no tiene copia en Drive.';return elemento;}
 var blob=await descargarArchivoDrive(elemento.driveFileId);
-var rapido=await extraerTextoOCRConInfo(blob,elemento.tipo,{rapido:true});
+function progresoDoc(etapa){return function(detalle){actualizarSubEstadoProgresoGlobal(detalle,etapa);};}
+var rapido=await extraerTextoOCRConInfo(blob,elemento.tipo,{rapido:true,onProgreso:progresoDoc('OCR rápido')});
 var info=rapido;
 var textoRapido=String(rapido.text||'').replace(/\s/g,'');
 // ANTES solo se pasaba a la pasada profunda (más preparaciones de imagen:
@@ -1873,7 +1813,7 @@ var textoRapido=String(rapido.text||'').replace(/\s/g,'');
 var rapidoYaFuerte=textoRapido.length>=35&&Number(rapido.confidence||0)>=75;
 var probableTextoUtil=(elemento.tipo==='pdf'||!rapidoYaFuerte);
 if(probableTextoUtil){
-var profundo=await extraerTextoOCRConInfo(blob,elemento.tipo,{rapido:false});
+var profundo=await extraerTextoOCRConInfo(blob,elemento.tipo,{rapido:false,onProgreso:progresoDoc('OCR profundo')});
 if(profundo.text&&(!rapido.text||profundo.confidence>=rapido.confidence||profundo.text.length>rapido.text.length))info=profundo;
 }
 elemento.ocrProcesado=true;
@@ -2184,6 +2124,9 @@ async function resolverAlbumPendiente(pendienteId,personaId,personaNombre){
 await cargarPendientesPersistentes();
 var pendiente=colaAlbumesPendientes[pendienteId];
 if(!pendiente){toast('Ese álbum pendiente ya no existe',true);return;}
+// La persona elegida para esta caja pasa a ser también la persona por defecto
+// del resto del programa (Analizar, Explorador, próximas cajas pendientes).
+await establecerPersonaDefecto(personaId,personaNombre);
 var clave=pendiente.claveAlias;
 var modoCajaCompleta=!!pendiente.modoCajaCompleta || !clave;
 var botones=document.querySelectorAll('button');
@@ -2225,9 +2168,6 @@ try{
     caja.estado=caja.contadores.dudas>0?'con_dudas':'procesada';
     caja.fechaProcesada=new Date().toISOString();
     await cPut('cajas',caja);
-    // Se recuerda quién fue la última persona cuya caja se terminó de procesar, para
-    // que "Analizar documentos" pueda proponerla por defecto (ver precargarPersonaDefectoRepaso).
-    await guardarCfgValor('ultimaPersonaProcesada',{id:personaId,nombre:personaNombre,fecha:new Date().toISOString()});
     finalizarProgresoAsignacion(true,'Álbum guardado: '+total+' elemento(s) procesado(s).');
     toast('Álbum "'+pendiente.nombreOriginal+'" asignado a '+personaNombre+' y copiado en tu Drive');
   }else{
@@ -2339,6 +2279,7 @@ return '<div class="colab-item" style="margin-bottom:6px;padding:8px 10px"><div 
 bloque.innerHTML='<b>'+esc(p.nombreOriginal)+'</b> <span class="badge">'+p.total+' elemento(s)</span>'+
 '<p style="font-size:11px;color:var(--muted);margin:6px 0 8px">El nombre del álbum no tiene por qué coincidir exactamente con el de la ficha. Sugerencias por parecido:</p>'+
 sugHtml+
+(PERSONA_DEFECTO&&PERSONA_DEFECTO.id?'<div style="margin-top:6px"><button class="btn ghost small" onclick="resolverAlbumPendiente(\''+clave+'\',\''+esc(PERSONA_DEFECTO.id)+'\',\''+esc(PERSONA_DEFECTO.nombre).replace(/'/g,"&#39;")+'\')"><i class="fa-solid fa-user-check"></i> Es de '+esc(PERSONA_DEFECTO.nombre)+' (persona por defecto)</button></div>':'')+
 '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
 '<input placeholder="O busca por nombre..." style="max-width:200px" oninput="buscarPersonaParaAlbum(this.value,\''+clave+'\',\''+idSlug+'\')">'+
 '<input placeholder="O escribe el ID exacto" style="max-width:110px" id="idDirecto_'+idSlug+'">'+
@@ -2451,6 +2392,49 @@ async function analizarOCRPendiente(){
    si quiere corregir alguna clasificación o relanzar el OCR de un documento. */
 var REPASO_CLASIFICADOS=[];
 var REPASO_PERSONA_ACTUAL=null;
+/* ===== PERSONA POR DEFECTO =====
+   Una sola persona "con la que se está trabajando", compartida entre Cajas
+   (sugerencia al resolver un álbum pendiente), Analizar documentos y
+   Explorador (se precarga sola al entrar en la pestaña). Se guarda en cfg
+   (Drive) para que sobreviva a recargar la página. Elegir a alguien en
+   cualquiera de esas pantallas actualiza también este valor — así el cambio
+   se nota en todas, no solo en la pantalla donde se hizo. */
+var PERSONA_DEFECTO=null;
+async function establecerPersonaDefecto(id,nombre){
+  PERSONA_DEFECTO={id:id,nombre:nombre};
+  try{await guardarCfgValor('personaDefecto',{id:id,nombre:nombre,fecha:new Date().toISOString()});}catch(e){}
+  renderPersonaDefectoPanel();
+}
+async function cargarPersonaDefecto(){
+  try{
+    var p=await leerCfgValor('personaDefecto',null);
+    if(p&&p.id)PERSONA_DEFECTO={id:p.id,nombre:p.nombre};
+  }catch(e){}
+  renderPersonaDefectoPanel();
+}
+function renderPersonaDefectoPanel(){
+  var cont=document.getElementById('personaDefectoActual');
+  if(!cont)return;
+  cont.innerHTML=(PERSONA_DEFECTO&&PERSONA_DEFECTO.id)?
+    '<i class="fa-solid fa-circle-user" style="color:var(--accent)"></i> <b>'+esc(PERSONA_DEFECTO.nombre)+'</b> <span style="color:var(--muted);font-size:11px">(ID '+esc(PERSONA_DEFECTO.id)+')</span>':
+    '<i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna elegida todavía</span>';
+}
+function buscarPersonaParaDefecto(q){
+  var cont=document.getElementById('resultadoBusquedaPersonaDefecto');
+  if(!q||q.length<2){if(cont)cont.innerHTML='';return;}
+  cargarPersonasArbol().then(function(personas){
+    var qn=normalizarTextoPersona(q);
+    var res=personas.filter(function(p){return normalizarTextoPersona(p._nombreCompleto).indexOf(qn)>=0||String(p.ID)===q.trim();}).slice(0,12);
+    if(!cont)return;
+    cont.innerHTML=res.length?res.map(function(p){return '<span class="badge" style="cursor:pointer" onclick="elegirPersonaDefecto(\''+esc(p.ID)+'\',\''+esc(p._nombreCompleto).replace(/'/g,"&#39;")+'\')">'+esc(p._nombreCompleto)+' (ID '+esc(p.ID)+')</span>';}).join(' '):'<span style="color:var(--muted)">Sin coincidencias</span>';
+  });
+}
+async function elegirPersonaDefecto(pid,nombre){
+  await establecerPersonaDefecto(pid,nombre);
+  var inp=document.getElementById('inputPersonaDefecto');if(inp)inp.value='';
+  var cont=document.getElementById('resultadoBusquedaPersonaDefecto');if(cont)cont.innerHTML='';
+  toast('Persona por defecto: '+nombre);
+}
 /* BLOQUE 5: la elección de persona es una búsqueda filtrada por nombre,
    no una lista desplegable con todas las fichas. */
 var PERSONAS_REPASO_CANDIDATAS=[];
@@ -2471,23 +2455,21 @@ document.getElementById('inputPersonaRepaso').value=nombre;
 document.getElementById('resultadoBusquedaPersonaRepaso').innerHTML='';
 var out=document.getElementById('resultadoAnalisisExistentes');
 if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Persona seleccionada: <b>'+esc(nombre)+'</b>. Pulsa <b>«Repasar carpeta de esta persona»</b> para leer y registrar los archivos.</p>';
+establecerPersonaDefecto(pid,nombre);
 }
 /* Al entrar en "Analizar documentos", si en esta sesión todavía no se ha elegido a
-   nadie, se propone automáticamente la persona de la última caja/álbum que se terminó
-   de procesar (guardada en resolverAlbumPendiente). Sigue siendo un punto de partida:
-   el campo de búsqueda queda intacto y elegir a otra persona la sustituye sin problema. */
+   nadie, se propone automáticamente la persona por defecto (PERSONA_DEFECTO, ver
+   más arriba). Sigue siendo un punto de partida: el campo de búsqueda queda
+   intacto y elegir a otra persona la sustituye sin problema. */
 async function precargarPersonaDefectoRepaso(){
 if(REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id)return;
-try{
-  var u=await leerCfgValor('ultimaPersonaProcesada',null);
-  if(u&&u.id){
-    REPASO_PERSONA_ACTUAL={id:u.id,nombre:u.nombre};
-    var inp=document.getElementById('inputPersonaRepaso');
-    if(inp)inp.value=u.nombre;
-    var out=document.getElementById('resultadoAnalisisExistentes');
-    if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Persona seleccionada: <b>'+esc(u.nombre)+'</b>. Pulsa <b>«Repasar carpeta de esta persona»</b> para iniciar el repaso.</p>';
-  }
-}catch(e){}
+if(!PERSONA_DEFECTO||!PERSONA_DEFECTO.id)return;
+var u=PERSONA_DEFECTO;
+REPASO_PERSONA_ACTUAL={id:u.id,nombre:u.nombre};
+var inp=document.getElementById('inputPersonaRepaso');
+if(inp)inp.value=u.nombre;
+var out=document.getElementById('resultadoAnalisisExistentes');
+if(out)out.innerHTML='<p style="color:var(--muted);font-size:12px">Persona seleccionada: <b>'+esc(u.nombre)+'</b>. Pulsa <b>«Repasar carpeta de esta persona»</b> para iniciar el repaso.</p>';
 }
 /* =====================================================================
    EXPLORADOR — pestaña independiente de solo lectura.
@@ -2508,12 +2490,22 @@ if(!cont)return;
 cont.innerHTML=res.length?res.map(function(p){return '<span class="badge" style="cursor:pointer" onclick="elegirPersonaExplorador(\''+esc(p.ID)+'\',\''+esc(p._nombreCompleto).replace(/'/g,"&#39;")+'\')">'+esc(p._nombreCompleto)+' (ID '+esc(p.ID)+')</span>';}).join(' '):'<span style="color:var(--muted)">Sin coincidencias</span>';
 });
 }
+/* Al entrar en "Explorador", si en esta sesión todavía no se ha elegido a
+   nadie, se propone automáticamente la persona por defecto (PERSONA_DEFECTO).
+   Igual que en Analizar: es solo un punto de partida, se puede cambiar sin
+   problema desde el propio buscador de esta pantalla. */
+async function precargarPersonaDefectoExplorador(){
+if(EXPLORADOR_PERSONA_ACTUAL&&EXPLORADOR_PERSONA_ACTUAL.id)return;
+if(!PERSONA_DEFECTO||!PERSONA_DEFECTO.id)return;
+await elegirPersonaExplorador(PERSONA_DEFECTO.id,PERSONA_DEFECTO.nombre);
+}
 async function elegirPersonaExplorador(pid,nombre){
 EXPLORADOR_PERSONA_ACTUAL={id:pid,nombre:nombre};
 EXPLORADOR_SELECCION=[];
 document.getElementById('inputPersonaExplorador').value=nombre;
 document.getElementById('resultadoBusquedaPersonaExplorador').innerHTML='';
 document.getElementById('resultadoExploradorDetalle').style.display='none';
+establecerPersonaDefecto(pid,nombre);
 var lista=document.getElementById('resultadoExploradorLista');
 lista.innerHTML='<p><span class="spinner"></span> Leyendo la carpeta de '+esc(nombre)+' en Drive…</p>';
 try{
@@ -2718,9 +2710,60 @@ html+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size
 html+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)">Ver JSON completo del sidecar</summary><pre style="white-space:pre-wrap;font-size:11px;background:var(--bg);padding:10px;border-radius:8px;margin-top:6px">'+esc(JSON.stringify(el,null,2))+'</pre></details>';
 if(el.driveFileId)html+='<p style="margin-top:10px"><a class="btn small" target="_blank" href="https://drive.google.com/file/d/'+encodeURIComponent(el.driveFileId)+'/view"><i class="fa-brands fa-google-drive"></i> Abrir archivo original en Drive</a></p>';
 if(el.driveFileId&&(el.tipo==='imagen'||el.tipo==='pdf'))html+='<p style="margin-top:6px"><button class="btn ghost small" onclick="relanzarOcrExplorador('+idx+')"><i class="fa-solid fa-rotate"></i> Forzar OCR más profundo</button> <span style="font-size:11px;color:var(--muted)">Prueba más preparaciones de la imagen (contraste, binarizado) y se queda con el mejor resultado. El texto anterior se sobrescribe.</span></p>';
+html+='<div class="card" style="margin-top:12px;border-color:var(--warn,#c96536)"><h3 style="margin:0;font-size:14px"><i class="fa-solid fa-right-left"></i> Pasar este archivo a otra persona</h3>'+
+'<p style="font-size:11px;color:var(--muted);margin:6px 0 8px">Para cuando un archivo se asignó a la persona equivocada. Mueve el archivo original y su ficha (JSON) a la carpeta de la persona que elijas, y actualiza la ficha para que quede a su nombre. Si esa persona todavía no tiene carpeta en Drive, se crea sola. El catálogo de ambas personas se actualiza al terminar.</p>'+
+'<div class="ef-row"><div class="ef-field" style="max-width:280px"><span class="ef-label">Nueva persona</span><input id="inputPersonaDestinoMover_'+idx+'" placeholder="Escribe el nombre..." oninput="buscarPersonaParaMoverExplorador(this.value,'+idx+')" autocomplete="off"></div></div>'+
+'<div id="resultadoBusquedaPersonaMoverExplorador_'+idx+'" style="font-size:11px"></div>'+
+'<div id="estadoMoverExplorador_'+idx+'" style="font-size:12px;color:var(--muted);margin-top:6px"></div></div>';
 det.innerHTML=html;
 det.style.display='block';
 det.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function buscarPersonaParaMoverExplorador(q,idx){
+var cont=document.getElementById('resultadoBusquedaPersonaMoverExplorador_'+idx);
+if(!q||q.length<2){if(cont)cont.innerHTML='';return;}
+cargarPersonasArbol().then(function(personas){
+var qn=normalizarTextoPersona(q);
+var res=personas.filter(function(p){return normalizarTextoPersona(p._nombreCompleto).indexOf(qn)>=0||String(p.ID)===q.trim();}).slice(0,12);
+if(!cont)return;
+cont.innerHTML=res.length?res.map(function(p){return '<span class="badge" style="cursor:pointer" onclick="confirmarMoverElementoExplorador('+idx+',\''+esc(p.ID)+'\',\''+esc(p._nombreCompleto).replace(/'/g,"&#39;")+'\')">'+esc(p._nombreCompleto)+' (ID '+esc(p.ID)+')</span>';}).join(' '):'<span style="color:var(--muted)">Sin coincidencias</span>';
+});
+}
+async function confirmarMoverElementoExplorador(idx,nuevoPid,nuevoNombre){
+var el=EXPLORADOR_ARCHIVOS[idx];
+if(!el||!EXPLORADOR_PERSONA_ACTUAL)return;
+var origenId=EXPLORADOR_PERSONA_ACTUAL.id,origenNombre=EXPLORADOR_PERSONA_ACTUAL.nombre;
+if(String(nuevoPid)===String(origenId)){toast('Ya está asignado a '+origenNombre,true);return;}
+if(!confirm('¿Pasar «'+(el.nombreOriginal||'')+'» de '+origenNombre+' a '+nuevoNombre+'?\n\nSe moverá el archivo y su ficha a la carpeta de '+nuevoNombre+' en Drive, y se actualizarán los catálogos de ambas personas.'))return;
+var estado=document.getElementById('estadoMoverExplorador_'+idx);
+if(estado)estado.innerHTML='<span class="spinner"></span> Moviendo a '+esc(nuevoNombre)+'…';
+try{
+  await moverElementoAOtraPersona(el,origenId,origenNombre,nuevoPid,nuevoNombre);
+  if(estado)estado.textContent='✓ Movido a '+nuevoNombre+' correctamente.';
+  toast('✓ «'+(el.nombreOriginal||'')+'» pasado a '+nuevoNombre);
+  // Recargamos la carpeta de la persona actual: el archivo ya no está en ella.
+  var carpeta=await carpetaDocumentosPersona(origenId,origenNombre);
+  EXPLORADOR_ARCHIVOS=await listarSidecarsDeCarpeta(carpeta.id);
+  renderExploradorLista();
+  document.getElementById('resultadoExploradorDetalle').style.display='none';
+}catch(err){
+  if(estado)estado.innerHTML='<span style="color:var(--warn)">No se pudo mover: '+esc(mensajeErrorHumano(err.message))+'</span>';
+}
+}
+/* Mueve un archivo y su sidecar de la carpeta de una persona a la de otra
+   (crea la carpeta destino si no existe, vía carpetaDocumentosPersona), y
+   actualiza dentro del sidecar quién es ahora la persona asignada. Al
+   terminar, regenera el catálogo de las DOS personas — el de origen (para
+   que deje de aparecer ahí) y el de destino (para que aparezca en el suyo). */
+async function moverElementoAOtraPersona(elemento,origenId,origenNombre,destinoId,destinoNombre){
+var carpetaOrigen=await carpetaDocumentosPersona(origenId,origenNombre);
+var carpetaDestino=await carpetaDocumentosPersona(destinoId,destinoNombre);
+await moverArchivoDriveConSidecar(elemento,carpetaDestino.id,carpetaOrigen.id);
+elemento.personaAsignadaId=destinoId;
+elemento.personas=[destinoNombre];
+await guardarSidecarArchivo(elemento,carpetaDestino.id,destinoNombre);
+try{await actualizarCatalogoPersona(origenId,origenNombre,carpetaOrigen);}catch(e){console.warn('No se pudo actualizar el catálogo de origen tras mover:',e.message);}
+try{await actualizarCatalogoPersona(destinoId,destinoNombre,carpetaDestino);}catch(e){console.warn('No se pudo actualizar el catálogo de destino tras mover:',e.message);}
 }
 /* Igual que relanzarOcrRepaso() (Repasar carpeta), pero para cualquier archivo
    consultado desde el Explorador, sea documento o fotografía, ya tenga OCR o
@@ -2860,11 +2903,9 @@ for(var i=0;i<sinRegistrar.length;i++){
 if(out)out.innerHTML='<p><b>Carpeta repasada.</b> '+actualizados+' archivo(s) nuevo(s) registrado(s). Ahora puedes indicar manualmente cuáles son documentos. Solo los que marques como <b>«Es documento»</b> pasarán a OCR pendiente. El <code>_catalogo.json</code> no se toca en este paso: se crea o actualiza solo cuando pulses «Generar catálogo de esta persona».</p>';
 // Repasar carpeta ya NO llama a sincronizarPersona(): antes se reconstruía
 // el catálogo aquí mismo, en cada repaso, aunque el usuario no lo hubiera
-// pedido. Ahora ese archivo solo se crea/actualiza desde los botones
-// explícitos de sincronización ("Generar catálogo de esta persona",
-// sincronizarUnaPersonaUI/Todas).
+// pedido. Ahora ese archivo solo se crea/actualiza desde "Generar catálogo
+// de esta persona".
 await actualizarResumenOCRPendiente();
-try{await renderPendientesSincronizar();}catch(e){}
 // Releemos los sidecars ya con lo recién registrado, para la lista de "reclasificar".
 var sidecarsFinal=actualizados?await listarSidecarsDeCarpeta(carpeta.id):sidecarsYaLeidos;
 REPASO_CLASIFICADOS=sidecarsFinal.filter(function(s){return s.esDocumento!==true;});
@@ -3165,7 +3206,6 @@ renderPanel();
 async function renderPanel(){
 actualizarDriveStatusPill();
 renderDuplicadosPosibles();
-renderPendientesSincronizar();
 var pp=document.getElementById('cardPrimerosPasos');
 if(pp)pp.style.display=(await leerCfgValor('primerosPasosOcultos',false))?'none':'block';
 var cajas=await cAll('cajas');
@@ -3432,10 +3472,10 @@ setTimeout(function(){location.reload();},700);
 }catch(err){toast('No se pudo vaciar la caché: '+err.message,true);}
 }
 /* Llamada desde el botón de "Analizar documentos" — usa la persona ya elegida ahí.
-   Antes de generar el catálogo comprueba que no quede OCR pendiente para esa
-   persona (si lo hay, avisa y no genera nada, para no publicar un catálogo con
-   documentos a medio analizar). Sustituye a los dos botones que antes existían
-   por separado ("Generar catálogo" y "Guardar JSON"): ahora es uno solo. */
+   No hace falta esperar a que termine el OCR: se puede pulsar en cualquier
+   momento y el catálogo reflejará lo que haya hasta ese instante. Sustituye
+   a los dos botones que antes existían por separado ("Generar catálogo" y
+   "Guardar JSON"): ahora es uno solo. */
 async function generarCatalogoElegidaRepaso(){
   if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar el catálogo',true);return;}
   var id=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
@@ -3450,7 +3490,6 @@ async function generarCatalogoElegidaRepaso(){
       var locales=await cAll('elementos');
       var deEsta=locales.filter(function(e){return e && String(e.personaAsignadaId)===String(id);});
       for(var i=0;i<deEsta.length;i++){deEsta[i].sincronizadoDrive=true;await cPut('elementos',deEsta[i]);}
-      await renderPendientesSincronizar();
     }catch(e){/* si no hay IndexedDB o está vacía, no pasa nada: Drive ya quedó al día */}
   }catch(err){
     var msgHumano=mensajeErrorHumano(err.message);
@@ -3482,6 +3521,7 @@ await migrarEsDocumentoLegacy();
 var badgeV=document.getElementById('badgeVersion'); if(badgeV)badgeV.textContent=VERSION_APP;
 document.title='Archivo documental familiar — Carlos · '+VERSION_APP;
 espacioAcumulado=await leerCfgValor('espacioAcumulado',{bytes:0,elementos:0});
+await cargarPersonaDefecto();
 renderPanel();
 actualizarDriveStatusPill();
 // Comprobación automática cada 5 minutos mientras la pestaña está abierta (ver nota de alcance).
