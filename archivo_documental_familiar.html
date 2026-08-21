@@ -2814,6 +2814,10 @@ html+='<div class="card" style="margin-top:12px;border-color:var(--warn,#c96536)
 '<div class="ef-row"><div class="ef-field" style="max-width:280px"><span class="ef-label">Nueva persona</span><input id="inputPersonaDestinoMover_'+idx+'" placeholder="Escribe el nombre..." oninput="buscarPersonaParaMoverExplorador(this.value,'+idx+')" autocomplete="off"></div></div>'+
 '<div id="resultadoBusquedaPersonaMoverExplorador_'+idx+'" style="font-size:11px"></div>'+
 '<div id="estadoMoverExplorador_'+idx+'" style="font-size:12px;color:var(--muted);margin-top:6px"></div></div>';
+html+='<div class="card" style="margin-top:12px;border-color:#b3261e"><h3 style="margin:0;font-size:14px;color:#b3261e"><i class="fa-solid fa-trash"></i> Eliminar este archivo</h3>'+
+'<p style="font-size:11px;color:var(--muted);margin:6px 0 8px">Borra <b>definitivamente</b> el archivo original y su ficha (JSON) de Google Drive. No pasa por la papelera de Drive: no se puede deshacer. El catálogo de esta persona se actualiza al terminar.</p>'+
+'<button class="btn small" style="background:#b3261e;border-color:#b3261e;color:#fff" onclick="eliminarArchivoExplorador('+idx+')"><i class="fa-solid fa-trash"></i> Eliminar definitivamente</button>'+
+'<div id="estadoEliminarExplorador_'+idx+'" style="font-size:12px;color:var(--muted);margin-top:6px"></div></div>';
 det.innerHTML=html;
 det.style.display='block';
 det.scrollIntoView({behavior:'smooth',block:'start'});
@@ -2911,6 +2915,44 @@ async function quitarOCRPendienteExplorador(idx){
     verDetalleExplorador(idx);
     toast('«'+(el.nombreOriginal||'')+'» ya no está en la cola de OCR pendiente.');
   }catch(err){toast('No se pudo actualizar: '+mensajeErrorHumano(err.message),true);}
+}
+/* Borra un archivo Y su sidecar de Drive, de forma permanente (Drive
+   files.delete no pasa por la papelera). Pide confirmación explícita escrita
+   además de las comprobaciones normales, precisamente porque no hay forma de
+   deshacerlo. Limpia también cualquier copia en IndexedDB, por si la hubiera
+   (best-effort: el Explorador trabaja contra Drive, no contra IndexedDB, así
+   que normalmente no habrá nada que limpiar ahí). */
+async function eliminarArchivoExplorador(idx){
+  var el=EXPLORADOR_ARCHIVOS[idx];
+  if(!el||!EXPLORADOR_PERSONA_ACTUAL)return;
+  var escrito=prompt('Esto borra «'+(el.nombreOriginal||'')+'» y su ficha de Google Drive DEFINITIVAMENTE (no se puede deshacer).\n\nEscribe BORRAR para confirmar:');
+  if(escrito===null)return;
+  if(escrito.trim().toUpperCase()!=='BORRAR'){toast('No se ha escrito "BORRAR"; no se ha eliminado nada.');return;}
+  var estado=document.getElementById('estadoEliminarExplorador_'+idx);
+  if(estado)estado.innerHTML='<span class="spinner"></span> Eliminando…';
+  try{
+    var carpeta=await carpetaDocumentosPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre);
+    if(el.driveFileId)await eliminarArchivoDrive(el.driveFileId);
+    try{
+      var nombreSidecar=nombreSidecarArchivo(el);
+      var sidecar=await buscarArchivoPorNombreEnCarpeta(nombreSidecar,carpeta.id);
+      if(sidecar)await eliminarArchivoDrive(sidecar.id);
+    }catch(eSide){console.warn('No se pudo borrar el sidecar de '+el.nombreOriginal+':',eSide.message);}
+    try{
+      var todosLocal=await cAll('elementos');
+      var coincide=todosLocal.filter(function(e){return e.driveFileId&&el.driveFileId&&e.driveFileId===el.driveFileId;});
+      for(var ci=0;ci<coincide.length;ci++)await cDel('elementos',coincide[ci].id);
+    }catch(eLocal){}
+    EXPLORADOR_ARCHIVOS=await listarSidecarsDeCarpeta(carpeta.id);
+    EXPLORADOR_SELECCION=[];
+    var det=document.getElementById('resultadoExploradorDetalle');if(det)det.style.display='none';
+    renderExploradorLista();
+    toast('«'+(el.nombreOriginal||'')+'» eliminado de Drive.');
+    try{await actualizarCatalogoPersona(EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL.nombre,carpeta);}catch(eCat){console.warn('No se pudo actualizar el catálogo tras eliminar:',eCat.message);}
+  }catch(err){
+    if(estado)estado.innerHTML='<span style="color:#b3261e">No se pudo eliminar: '+esc(mensajeErrorHumano(err.message))+'</span>';
+    else toast('No se pudo eliminar: '+mensajeErrorHumano(err.message),true);
+  }
 }
 /* ===== Registro de un archivo 100% contra Drive, sin IndexedDB =====
    Si el archivo YA tenía un sidecar en Drive (por ejemplo, registrado en otra
