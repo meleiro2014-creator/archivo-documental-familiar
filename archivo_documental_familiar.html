@@ -794,13 +794,23 @@ function descripcionBreveDocumento(d){
   if(resumen)return resumen.length>150?resumen.slice(0,150)+'…':resumen;
   return '';
 }
+/* Descarta una etiqueta si es, en realidad, el propio nombre del archivo
+   repetido (con o sin extensión) — pasa tanto en importaciones nuevas ya
+   filtradas en origen, como en fotos importadas antes de ese filtro, cuyo
+   sidecar en Drive ya guardó el nombre como si fuera una etiqueta real. */
+function noEsNombreDeArchivo(etiqueta,nombreOriginal){
+if(!etiqueta||!nombreOriginal)return true;
+var e=String(etiqueta).trim().toLowerCase();
+var n=String(nombreOriginal).trim().toLowerCase();
+return e!==n&&e!==n.replace(/\.[^.]+$/,'');
+}
 /* Descripción breve de una fotografía: descripción de Google Fotos + etiquetas,
    pasadas por el filtro de legibilidad. */
 function descripcionBreveFotografia(f){
   var partes=[];
   var desc=textoLegible(f.googlePhotosDescription||'');
   if(desc)partes.push(desc);
-  var etiquetas=(f.etiquetas||[]).map(function(x){return textoLegible(x);}).filter(Boolean);
+  var etiquetas=(f.etiquetas||[]).map(function(x){return textoLegible(x);}).filter(Boolean).filter(function(x){return noEsNombreDeArchivo(x,f.nombreOriginal);});
   if(etiquetas.length)partes.push('Etiquetas: '+etiquetas.join(', '));
   return partes.join(' · ');
 }
@@ -811,9 +821,9 @@ function etiquetaDocumento(d){
   return tipos.join(' · ');
 }
 /* Etiqueta de una fotografía: sus etiquetas ya existentes (título/descripción de Google
-   Fotos u otras). */
+   Fotos u otras), sin contar el propio nombre del archivo como si fuera una etiqueta. */
 function etiquetaFotografia(f){
-  return (f.etiquetas||[]).map(function(x){return textoLegible(x);}).filter(Boolean).join(' · ');
+  return (f.etiquetas||[]).map(function(x){return textoLegible(x);}).filter(Boolean).filter(function(x){return noEsNombreDeArchivo(x,f.nombreOriginal);}).join(' · ');
 }
 /* Lugar detectado en un documento: prioriza el lugar de nacimiento/defunción que ya
    identifica analizarTextoGenealogico (más fiable, viene con el tipo); si no hay,
@@ -1503,7 +1513,19 @@ if(!existente && duplicadoDrive && duplicadoDrive.id){
 var personasEtiquetadas=(jsonData&&Array.isArray(jsonData.people))?jsonData.people.map(function(p){return p.name;}).filter(Boolean):[];
 var otrasPersonas=personasEtiquetadas.filter(function(n){return normalizarNombreAlbum(n)!==normalizarNombreAlbum(personaNombre);});
 var etiquetas=[];
-if(jsonData&&jsonData.title&&!/^\d{8}_/.test(jsonData.title))etiquetas.push(jsonData.title);
+/* Google Fotos rellena "title" con el propio nombre del archivo cuando nadie
+   le puso un título real (el caso habitual en fotos familiares antiguas sin
+   editar en Google Fotos). Antes solo se descartaba el patrón típico de
+   Google Fotos "20230115_..."; ahora también se descarta cualquier título
+   que sea, literalmente, el nombre del archivo (con o sin extensión, sin
+   distinguir mayúsculas), para no guardar el nombre del archivo dos veces
+   como si fuera una etiqueta real. */
+if(jsonData&&jsonData.title&&!/^\d{8}_/.test(jsonData.title)){
+var tituloNorm=String(jsonData.title).trim().toLowerCase();
+var nombreNorm=String(nombreArchivo).trim().toLowerCase();
+var nombreSinExt=nombreNorm.replace(/\.[^.]+$/,'');
+if(tituloNorm!==nombreNorm&&tituloNorm!==nombreSinExt)etiquetas.push(jsonData.title);
+}
 if(jsonData&&jsonData.description)etiquetas.push(String(jsonData.description));
 var fecha=extraerAnioDeMetadata(jsonData);
 var fechaEstimada=!fecha;
