@@ -109,6 +109,18 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 #progresoGlobalBox .pg-skip{margin-top:9px;width:100%;padding:6px 10px;font-size:12px;border:1px solid #d9cdbf;border-radius:8px;background:#fbf7f2;color:#7b5a3c;cursor:pointer}
 #progresoGlobalBox .pg-skip:hover{background:#f3e9dd}
 #progresoGlobalBox .pg-skip:disabled{opacity:.5;cursor:default}
+#progresoGlobalBox .pg-cancel{margin-top:7px;width:100%;padding:6px 10px;font-size:12px;border:1px solid #c0392b;border-radius:8px;background:#fdf0ee;color:#c0392b;cursor:pointer;font-weight:700}
+#progresoGlobalBox .pg-cancel:hover{background:#f8dcd7}
+#progresoGlobalBox .pg-cancel:disabled{opacity:.5;cursor:default}
+/* ===== BARRA FIJA DE PERSONA ACTIVA (visible desde el principio en todas las pantallas) ===== */
+#barraPersonaGlobal{position:sticky;top:54px;z-index:90;background:#F1E7D8;border-bottom:2px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#barraPersonaGlobal .bpg-actual{font-size:12.5px;display:flex;align-items:center;gap:6px}
+#barraPersonaGlobal .bpg-cambiar{position:relative;display:flex;align-items:center;gap:6px;flex:1;min-width:200px;max-width:360px}
+#barraPersonaGlobal input{width:100%;font-size:12px;padding:5px 9px}
+#barraPersonaGlobal .bpg-resultados{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;padding:6px;margin-top:4px;z-index:95;box-shadow:0 8px 20px rgba(0,0,0,.12);display:none}
+#barraPersonaGlobal .bpg-resultados.show{display:block}
+#barraPersonaGlobal .bpg-recientes{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#barraPersonaGlobal .bpg-recientes .badge{cursor:pointer}
 </style>
 </head>
 <body><div id="progresoGlobalBox">
@@ -117,6 +129,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
   <div class="pg-track"><div class="pg-fill" id="pgFill"></div></div>
   <div class="pg-foot"><span id="pgCount">0 de 0</span><span id="pgEta">Calculando tiempo restante…</span></div>
   <button type="button" class="pg-skip" id="pgSkipBtn" onclick="solicitarSaltoOCR()"><i class="fa-solid fa-forward-step"></i> Saltar este documento y seguir con el siguiente</button>
+  <button type="button" class="pg-cancel" id="pgCancelBtn" onclick="solicitarCancelarOCR()"><i class="fa-solid fa-xmark"></i> Cancelar todo el proceso</button>
 </div>
 <div class="toast-c" id="toastC"></div>
 <header>
@@ -129,6 +142,15 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <button data-v="cfg" onclick="sv('cfg')"><i class="fa-solid fa-gear"></i> Configuración</button>
 </nav>
 </header>
+<div id="barraPersonaGlobal">
+<div class="bpg-actual" id="bpgActual"><i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna persona elegida todavía</span></div>
+<div class="bpg-cambiar">
+<input id="bpgInput" placeholder="Cambiar de persona…" oninput="buscarPersonaBarraGlobal(this.value)" autocomplete="off">
+<div class="bpg-resultados" id="bpgResultados"></div>
+</div>
+<button class="btn ghost small" id="bpgAbrirCarpeta" onclick="abrirCarpetaPersonaDrive()" style="display:none" title="Abrir en Google Drive la carpeta de esta persona"><i class="fa-brands fa-google-drive"></i> Carpeta en Drive</button>
+<div class="bpg-recientes" id="bpgRecientes"></div>
+</div>
 <main>
 
 <!-- ===== PANEL DEL ADMINISTRADOR (10.1) ===== -->
@@ -198,31 +220,35 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 
 <!-- ===== ANALIZAR DOCUMENTOS (fusiona lo que antes era "Dudas" + "Analizar") ===== -->
 <div class="view" id="vAnalizar">
-<div class="hero"><h1>Analizar documentos</h1><p>Todo el trabajo persona a persona vive aquí: eliges una ficha y pulsas "Repasar carpeta" para que el programa mire, directamente en Drive, la carpeta DOCUMENTOS/&lt;ID&gt; de esa persona. Lo que todavía no tenga su ficha (sidecar) se registra automáticamente — como fotografía si es una imagen o vídeo, como documento si es un PDF u otro formato. Después puedes corregir alguna clasificación, lanzar el OCR de los documentos y, desde aquí mismo, generar su catálogo.</p></div>
+<div class="hero"><h1>Analizar documentos</h1><p>Todo el trabajo persona a persona vive aquí: eliges una ficha y pulsas "Repasar carpeta" para que el programa mire, directamente en Drive, la carpeta DOCUMENTOS/&lt;ID&gt; de esa persona. Lo que todavía no tenga su ficha (sidecar) se registra automáticamente — como fotografía si es una imagen o vídeo, como documento si es un PDF u otro formato. Después puedes corregir alguna clasificación y lanzar el OCR de los documentos; el catálogo se genera al final, desde Explorador.</p></div>
 <div class="card"><h3>1. Elegir persona</h3>
 <div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Elegir persona a analizar</span><input id="inputPersonaRepaso" placeholder="Escribe el nombre..." oninput="buscarPersonaParaRepaso(this.value)" autocomplete="off"></div></div>
 <div id="resultadoBusquedaPersonaRepaso" style="font-size:11px;margin-bottom:8px"></div>
-<button class="btn" onclick="analizarDocumentosExistentes()"><i class="fa-solid fa-folder-open"></i> Repasar carpeta de esta persona</button></div>
+<button class="btn" onclick="analizarDocumentosExistentes()"><i class="fa-solid fa-folder-open"></i> Repasar carpeta de esta persona</button>
+<button class="btn ghost" onclick="abrirCarpetaPersonaDrive(REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id,REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.nombre)"><i class="fa-brands fa-google-drive"></i> Abrir carpeta en Drive</button></div>
 <div class="card" id="resultadoAnalisisExistentes"><p style="color:var(--muted);font-size:12px">Todavía no se ha repasado ninguna carpeta.</p></div>
 <div class="card"><h3>2. Ejecutar OCR pendiente</h3>
-<p style="font-size:12px;color:var(--muted);line-height:1.6">Esto SÍ actúa sobre todas las personas a la vez: busca todo lo que en algún momento marcaste como "Es documento" y le pasa el reconocimiento de texto (OCR). En cuanto termina cada documento, su ficha se guarda al momento en Drive (ya no hace falta esperar a sincronizar para que el resultado del OCR quede a salvo). Puede tardar varios minutos si hay muchos documentos pendientes — verás una barra de progreso mientras trabaja.</p>
+<p style="font-size:12px;color:var(--muted);line-height:1.6">Esto SÍ actúa sobre todas las personas a la vez: busca todo lo que en algún momento marcaste como "Es documento" y le pasa el reconocimiento de texto (OCR). En cuanto termina cada documento, su ficha se guarda al momento en Drive (ya no hace falta esperar a sincronizar para que el resultado del OCR quede a salvo). Puede tardar varios minutos si hay muchos documentos pendientes — verás una barra de progreso mientras trabaja, con opción de saltar un documento o cancelar todo el proceso.</p>
 <button class="btn ghost" onclick="analizarOCRPendiente()"><i class="fa-solid fa-file-lines"></i> Ejecutar OCR pendiente</button>
 <div id="ocrPendienteResumen" style="margin-top:10px;font-size:12px;color:var(--muted)"></div></div>
-<div class="card"><h3>3. Catálogo de esta persona</h3>
-<p style="font-size:12px;color:var(--muted);line-height:1.6">Genera una ficha corta por cada archivo de su carpeta (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo.</p>
+<div class="note">El catálogo de esta persona ya no se genera aquí: pásate a <b>Explorador</b> cuando quieras repasar sus archivos uno a uno — el botón para generar el catálogo está al final de esa pantalla, como último paso.</div>
+</div>
+<div class="view" id="vExplorador">
+<div class="hero"><h1>Explorador de archivos</h1><p>Consulta, para cualquier persona, exactamente lo que hay grabado en Drive — nada de esto pasa por la memoria del navegador, se lee directamente de la carpeta y de los sidecars en cada visita. Útil para comprobar qué sabe el programa de una foto o documento concreto, y es el sitio desde el que generar su catálogo al terminar de repasarla.</p></div>
+<div class="card"><h3>Elegir persona</h3>
+<div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Buscar persona</span><input id="inputPersonaExplorador" placeholder="Escribe el nombre..." oninput="buscarPersonaParaExplorador(this.value)" autocomplete="off"></div>
+<button class="btn ghost small" onclick="abrirCarpetaPersonaDrive(EXPLORADOR_PERSONA_ACTUAL&&EXPLORADOR_PERSONA_ACTUAL.id,EXPLORADOR_PERSONA_ACTUAL&&EXPLORADOR_PERSONA_ACTUAL.nombre)"><i class="fa-brands fa-google-drive"></i> Abrir carpeta en Drive</button></div>
+<div id="resultadoBusquedaPersonaExplorador" style="font-size:11px;margin-bottom:4px"></div>
+<div id="personasAnalizadasExplorador" style="margin-top:6px"></div>
+</div>
+<div class="card" id="resultadoExploradorLista"><p style="color:var(--muted);font-size:12px">Elige una persona para ver los archivos de su carpeta.</p></div>
+<div class="card" id="resultadoExploradorDetalle" style="display:none"></div>
+<div class="card" id="cardCatalogoExplorador" style="display:none;border-color:var(--accent)"><h3><i class="fa-solid fa-table-list"></i> Último paso: catálogo de esta persona</h3>
+<p style="font-size:12px;color:var(--muted);line-height:1.6">Una vez repasados sus archivos aquí, genera una ficha corta por cada uno (documento o fotografía ya analizado): persona, nombre de archivo, tipo, fecha y una descripción breve — nunca el texto OCR completo.</p>
 <button class="btn" onclick="generarCatalogoElegidaRepaso()"><i class="fa-solid fa-table-list"></i> Generar catálogo de esta persona</button>
 <p style="font-size:11px;color:var(--muted);margin-top:6px">Se guarda como &lt;ID&gt;_catalogo.json en la carpeta de la persona. No editado a mano.</p>
 <div id="resultadoInforme"><p style="color:var(--muted);font-size:12px">Todavía no hay un catálogo generado.</p></div>
 </div>
-</div>
-<div class="view" id="vExplorador">
-<div class="hero"><h1>Explorador de archivos</h1><p>Consulta, para cualquier persona, exactamente lo que hay grabado en Drive — nada de esto pasa por la memoria del navegador, se lee directamente de la carpeta y de los sidecars en cada visita. Útil para comprobar qué sabe el programa de una foto o documento concreto.</p></div>
-<div class="card"><h3>Elegir persona</h3>
-<div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Buscar persona</span><input id="inputPersonaExplorador" placeholder="Escribe el nombre..." oninput="buscarPersonaParaExplorador(this.value)" autocomplete="off"></div></div>
-<div id="resultadoBusquedaPersonaExplorador" style="font-size:11px;margin-bottom:4px"></div>
-</div>
-<div class="card" id="resultadoExploradorLista"><p style="color:var(--muted);font-size:12px">Elige una persona para ver los archivos de su carpeta.</p></div>
-<div class="card" id="resultadoExploradorDetalle" style="display:none"></div>
 </div>
 <div class="view" id="vCfg">
 <div class="hero"><h1>Configuración</h1><p>Solo hace falta revisar esto una vez, la primera vez que uses el programa (o si algo deja de conectar). Los valores de esta instalación ya vienen rellenos por defecto; solo tendrías que tocarlos si cambias de carpeta de Drive o de proyecto de Google.</p></div>
@@ -345,6 +371,30 @@ function reiniciarBotonSaltoOCR(){
   OCR_SALTO_PENDIENTE=false;OCR_SALTO_RESOLVER=null;
   var btn=document.getElementById('pgSkipBtn');
   if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-forward-step"></i> Saltar este documento y seguir con el siguiente';}
+  reiniciarBotonCancelarOCR();
+}
+/* ===== Cancelar TODO el lote de OCR (no solo el documento actual) =====
+   Igual que OCR_SALTO_RESOLVER, pero en vez de pasar al siguiente documento,
+   corta el bucle completo de analizarOCRPendiente() en cuanto termina (o se
+   salta) el documento en curso. Lo ya procesado queda guardado en Drive tal
+   cual (cada ficha se guarda al momento, ver analizarOCRPendiente); lo
+   pendiente simplemente no se toca y se puede retomar más tarde volviendo a
+   pulsar "Ejecutar OCR pendiente". */
+var OCR_CANCELAR_RESOLVER=null;
+var OCR_CANCELAR_PENDIENTE=false;
+function solicitarCancelarOCR(){
+  if(!confirm('Se detendrá el proceso de OCR después del documento que se esté procesando ahora mismo. Lo ya hecho queda guardado; lo pendiente se puede retomar luego. ¿Cancelar?'))return;
+  OCR_CANCELAR_PENDIENTE=true;
+  if(OCR_CANCELAR_RESOLVER){var r=OCR_CANCELAR_RESOLVER;OCR_CANCELAR_RESOLVER=null;r();}
+  if(OCR_SALTO_RESOLVER){var r2=OCR_SALTO_RESOLVER;OCR_SALTO_RESOLVER=null;r2();}
+  OCR_SALTO_PENDIENTE=true;
+  var btn=document.getElementById('pgCancelBtn');if(btn){btn.disabled=true;btn.textContent='Cancelando…';}
+  toast('Cancelando el proceso de OCR tras el documento actual…');
+}
+function reiniciarBotonCancelarOCR(){
+  OCR_CANCELAR_PENDIENTE=false;OCR_CANCELAR_RESOLVER=null;
+  var btn=document.getElementById('pgCancelBtn');
+  if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-xmark"></i> Cancelar todo el proceso';}
 }
 function mostrarProgresoGlobal(total,hechos,archivo,etapa){
   PG.total=Math.max(0,Number(total)||0);PG.hechos=Math.max(0,Number(hechos)||0);
@@ -388,7 +438,7 @@ function actualizarSubEstadoProgresoGlobal(detalle,etapa){
 function toast(m,e){var c=document.getElementById('toastC'),t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;c.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},4000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtBytes(n){if(!n)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(1)+' '+u[i];}
-function sv(v){['panel','cajas','analizar','explorador','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel'){renderPanel();renderPersonaDefectoPanel();}if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}if(v==='explorador')precargarPersonaDefectoExplorador();}
+function sv(v){['panel','cajas','analizar','explorador','cfg'].forEach(function(id){document.getElementById('v'+id.charAt(0).toUpperCase()+id.slice(1)).classList.remove('active');});document.getElementById('v'+v.charAt(0).toUpperCase()+v.slice(1)).classList.add('active');document.querySelectorAll('#mn button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-v')===v);});if(v==='cajas')renderCajas();if(v==='cfg')renderConfig();if(v==='panel'){renderPanel();renderPersonaDefectoPanel();}if(v==='analizar'){actualizarResumenOCRPendiente();precargarPersonaDefectoRepaso();}if(v==='explorador')precargarPersonaDefectoExplorador();if((v==='analizar'||v==='explorador')&&tokenDriveValido())cargarPersonasAnalizadas().then(renderPersonasAnalizadasBarra);}
 
 /* ===== BASE DE DATOS LOCAL (propia, independiente de la de la app de árbol) ===== */
 function oDB(){return new Promise(function(res,rej){var r=indexedDB.open('ArchivoDocumentalFamiliar_v1',1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('cajas'))d.createObjectStore('cajas',{keyPath:'id'});if(!d.objectStoreNames.contains('elementos'))d.createObjectStore('elementos',{keyPath:'id'});if(!d.objectStoreNames.contains('cfg'))d.createObjectStore('cfg',{keyPath:'id'});if(!d.objectStoreNames.contains('pendientes'))d.createObjectStore('pendientes',{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res(db);};r.onerror=function(){rej(r.error);};});}
@@ -1484,6 +1534,58 @@ async function carpetaRaizFOTO(){if(!CFG_FOTO_ID)CFG_FOTO_ID=await obtenerOCrear
 async function carpetaRaizDOCUMENTOS(){if(!CFG_DOCUMENTOS_ID)CFG_DOCUMENTOS_ID=await obtenerOCrearCarpeta('DOCUMENTOS',CFG_DESTINO_ID);return CFG_DOCUMENTOS_ID;}
 async function carpetaFotoPersona(personaId,personaNombre){var raiz=await carpetaRaizFOTO();return{id:raiz,ruta:'FOTO/'+personaId+'.jpg ('+personaNombre+')'};}
 async function carpetaDocumentosPersona(personaId,personaNombre){var raizDocs=await carpetaRaizDOCUMENTOS();var carpetaId=await obtenerOCrearCarpeta(String(personaId),raizDocs);return{id:carpetaId,ruta:'DOCUMENTOS/'+personaId+'/ ('+personaNombre+')'};}
+/* ===== REGISTRO DE PERSONAS ANALIZADAS =====
+   Lista, guardada en Drive junto a DOCUMENTOS/ (personas_analizadas.json), de
+   qué personas se han repasado ya al menos una vez ("Repasar carpeta" en
+   Analizar) o tienen catálogo generado (Explorador). No es imprescindible
+   para que la app funcione — es solo una ayuda para no tener que volver a
+   escribir el nombre de alguien con quien ya se ha trabajado: se muestra como
+   una fila de "chips" en la barra fija de persona y en Explorador, y con un
+   clic vuelve a dejarla como persona activa. Vive en Drive (no en
+   IndexedDB) para que la lista sea la misma entres en el navegador que entres.*/
+var PERSONAS_ANALIZADAS_CACHE=null;
+async function archivoPersonasAnalizadas(){
+  var raiz=await carpetaRaizDOCUMENTOS();
+  var f=await buscarArchivoPorNombreEnCarpeta('personas_analizadas.json',raiz);
+  return {raiz:raiz,file:f};
+}
+async function cargarPersonasAnalizadas(forzar){
+  if(PERSONAS_ANALIZADAS_CACHE&&!forzar)return PERSONAS_ANALIZADAS_CACHE;
+  try{
+    var info=await archivoPersonasAnalizadas();
+    if(info.file){
+      var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(info.file.id)+'?alt=media');
+      var d=r.ok?JSON.parse(await r.text()):{personas:[]};
+      PERSONAS_ANALIZADAS_CACHE=Array.isArray(d.personas)?d.personas:[];
+    }else{
+      PERSONAS_ANALIZADAS_CACHE=[];
+    }
+  }catch(e){console.warn('No se pudo leer el registro de personas analizadas:',e.message);PERSONAS_ANALIZADAS_CACHE=PERSONAS_ANALIZADAS_CACHE||[];}
+  return PERSONAS_ANALIZADAS_CACHE;
+}
+async function registrarPersonaAnalizada(id,nombre){
+  if(!id)return;
+  try{
+    var lista=await cargarPersonasAnalizadas();
+    var idx=-1;
+    for(var i=0;i<lista.length;i++){if(String(lista[i].id)===String(id)){idx=i;break;}}
+    var entrada={id:id,nombre:nombre,ultimaVez:new Date().toISOString(),veces:(idx>=0?(lista[idx].veces||0):0)+1};
+    if(idx>=0)lista[idx]=entrada;else lista.unshift(entrada);
+    lista.sort(function(a,b){return new Date(b.ultimaVez)-new Date(a.ultimaVez);});
+    PERSONAS_ANALIZADAS_CACHE=lista;
+    var info=await archivoPersonasAnalizadas();
+    var blob=new Blob([JSON.stringify({version:1,actualizado:new Date().toISOString(),personas:lista},null,2)],{type:'application/json;charset=utf-8'});
+    if(info.file)await actualizarBinarioADrive(info.file.id,blob,'application/json');
+    else await subirBinarioADrive('personas_analizadas.json',blob,'application/json',info.raiz,'Registro de personas ya repasadas/analizadas en esta app. Generado automáticamente; no editar a mano.');
+    renderPersonasAnalizadasBarra();
+  }catch(e){console.warn('No se pudo actualizar el registro de personas analizadas:',e.message);}
+}
+function renderPersonasAnalizadasBarra(){
+  var lista=PERSONAS_ANALIZADAS_CACHE||[];
+  var chips=function(onclickFn){return lista.length?('<span style="font-size:10px;color:var(--muted);margin-right:4px">Ya analizadas:</span>'+lista.slice(0,10).map(function(p){return '<span class="badge" style="cursor:pointer;margin:2px" onclick="'+onclickFn+'(\''+esc(p.id)+'\',\''+esc(p.nombre).replace(/'/g,"&#39;")+'\')">'+esc(p.nombre)+'</span>';}).join('')):'';};
+  var b1=document.getElementById('bpgRecientes');if(b1)b1.innerHTML=chips('elegirPersonaBarraGlobal');
+  var b2=document.getElementById('personasAnalizadasExplorador');if(b2)b2.innerHTML=chips('elegirPersonaExplorador');
+}
 async function carpetaRevision(){if(!CFG_REVISION_ID)CFG_REVISION_ID=await obtenerOCrearCarpeta(CARPETA_REVISION_NOMBRE,CFG_DESTINO_ID);return{id:CFG_REVISION_ID,ruta:CARPETA_REVISION_NOMBRE};}
 
 async function procesarElementoConPersona(nombreArchivo,tipo,blob,jsonData,caja,esHuerfano,personaId,personaNombre,albumNombre){
@@ -2515,7 +2617,8 @@ async function analizarOCRPendiente(){
   if(!CFG_OCR_ACTIVO){toast('El interruptor de OCR está desactivado en Configuración. Actívalo para poder ejecutarlo.',true);return;}
   if(!confirm('Se ejecutará el OCR de '+lista.length+' documento(s) marcado(s) como tal por ti. ¿Continuar?'))return;
   PG.inicio=Date.now();
-  var hechos=0,saltados=0;
+  OCR_CANCELAR_PENDIENTE=false;OCR_CANCELAR_RESOLVER=null;
+  var hechos=0,saltados=0,cancelado=false;
   for(var i=0;i<lista.length;i++){
     var el=lista[i];
     try{
@@ -2534,12 +2637,18 @@ async function analizarOCRPendiente(){
     }
     hechos++;
     mostrarProgresoGlobal(lista.length,hechos,el.nombreOriginal,hechos>=lista.length?'OCR terminado':'Guardando resultado');
+    if(OCR_CANCELAR_PENDIENTE){cancelado=true;break;}
   }
   setTimeout(ocultarProgresoGlobal,800);
   await actualizarResumenOCRPendiente();
   await recalcularContadoresDudas();
   if(REPASO_PERSONA_ACTUAL&&REPASO_PERSONA_ACTUAL.id)await analizarDocumentosExistentes();
-  toast('OCR terminado: '+hechos+' documento(s) procesado(s)'+(saltados?', '+saltados+' saltado(s) manualmente (quedan pendientes para reintentar)':'')+'. Cada ficha se ha guardado en Drive según se completaba su OCR.');
+  reiniciarBotonCancelarOCR();
+  if(cancelado){
+    toast('OCR cancelado por ti: '+hechos+' de '+lista.length+' documento(s) procesado(s) antes de cancelar. Lo ya hecho queda guardado en Drive; el resto sigue pendiente.',true);
+  }else{
+    toast('OCR terminado: '+hechos+' documento(s) procesado(s)'+(saltados?', '+saltados+' saltado(s) manualmente (quedan pendientes para reintentar)':'')+'. Cada ficha se ha guardado en Drive según se completaba su OCR.');
+  }
 }
 /* ===== BLOQUE D: "Analizar documentos existentes" (repasar carpeta) =====
    El usuario elige la persona a repasar; el programa lee, en Drive, la carpeta
@@ -2561,6 +2670,7 @@ async function establecerPersonaDefecto(id,nombre){
   PERSONA_DEFECTO={id:id,nombre:nombre};
   try{await guardarCfgValor('personaDefecto',{id:id,nombre:nombre,fecha:new Date().toISOString()});}catch(e){}
   renderPersonaDefectoPanel();
+  renderBarraPersonaGlobal();
 }
 async function cargarPersonaDefecto(){
   try{
@@ -2568,6 +2678,8 @@ async function cargarPersonaDefecto(){
     if(p&&p.id)PERSONA_DEFECTO={id:p.id,nombre:p.nombre};
   }catch(e){}
   renderPersonaDefectoPanel();
+  renderBarraPersonaGlobal();
+  renderPersonasAnalizadasBarra();
 }
 function renderPersonaDefectoPanel(){
   var cont=document.getElementById('personaDefectoActual');
@@ -2575,6 +2687,63 @@ function renderPersonaDefectoPanel(){
   cont.innerHTML=(PERSONA_DEFECTO&&PERSONA_DEFECTO.id)?
     '<i class="fa-solid fa-circle-user" style="color:var(--accent)"></i> <b>'+esc(PERSONA_DEFECTO.nombre)+'</b> <span style="color:var(--muted);font-size:11px">(ID '+esc(PERSONA_DEFECTO.id)+')</span>':
     '<i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna elegida todavía</span>';
+}
+/* ===== BARRA FIJA DE PERSONA (visible desde el arranque, en TODAS las pantallas) =====
+   Es el mismo PERSONA_DEFECTO de siempre, pero ahora mostrado y editable desde
+   una barra fija bajo la cabecera en vez de solo dentro de Panel. Cambiarla
+   aquí llama a establecerPersonaDefecto() (fuente única) y, además, si la
+   pantalla activa en ese momento es Analizar o Explorador, actualiza también
+   su selección propia (REPASO_PERSONA_ACTUAL / EXPLORADOR_PERSONA_ACTUAL) para
+   no obligar a volver a escribir el nombre otra vez en esa pantalla. */
+function renderBarraPersonaGlobal(){
+  var cont=document.getElementById('bpgActual');
+  if(!cont)return;
+  cont.innerHTML=(PERSONA_DEFECTO&&PERSONA_DEFECTO.id)?
+    '<i class="fa-solid fa-circle-user" style="color:var(--accent)"></i> <b>'+esc(PERSONA_DEFECTO.nombre)+'</b> <span style="color:var(--muted)">(ID '+esc(PERSONA_DEFECTO.id)+')</span>':
+    '<i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna persona elegida todavía</span>';
+  var btnCarpeta=document.getElementById('bpgAbrirCarpeta');
+  if(btnCarpeta)btnCarpeta.style.display=(PERSONA_DEFECTO&&PERSONA_DEFECTO.id)?'inline-flex':'none';
+}
+function buscarPersonaBarraGlobal(q){
+  var cont=document.getElementById('bpgResultados');
+  if(!cont)return;
+  if(!q||q.length<2){cont.classList.remove('show');cont.innerHTML='';return;}
+  cargarPersonasArbol().then(function(personas){
+    var qn=normalizarTextoPersona(q);
+    var res=personas.filter(function(p){return normalizarTextoPersona(p._nombreCompleto).indexOf(qn)>=0||String(p.ID)===q.trim();}).slice(0,12);
+    cont.innerHTML=res.length?res.map(function(p){return '<span class="badge" style="cursor:pointer;display:inline-block;margin:2px" onclick="elegirPersonaBarraGlobal(\''+esc(p.ID)+'\',\''+esc(p._nombreCompleto).replace(/'/g,"&#39;")+'\')">'+esc(p._nombreCompleto)+' (ID '+esc(p.ID)+')</span>';}).join(''):'<span style="color:var(--muted);font-size:11px">Sin coincidencias</span>';
+    cont.classList.add('show');
+  });
+}
+async function elegirPersonaBarraGlobal(pid,nombre){
+  await establecerPersonaDefecto(pid,nombre);
+  var inp=document.getElementById('bpgInput');if(inp)inp.value='';
+  var cont=document.getElementById('bpgResultados');if(cont){cont.classList.remove('show');cont.innerHTML='';}
+  // Propaga el cambio a la pantalla activa, para no tener que volver a escribir el nombre allí.
+  var vistaActiva=document.querySelector('#mn button.active');
+  var v=vistaActiva?vistaActiva.getAttribute('data-v'):null;
+  if(v==='analizar'){
+    REPASO_PERSONA_ACTUAL={id:pid,nombre:nombre};
+    var inpR=document.getElementById('inputPersonaRepaso');if(inpR)inpR.value=nombre;
+    var outR=document.getElementById('resultadoAnalisisExistentes');
+    if(outR)outR.innerHTML='<p style="color:var(--muted);font-size:12px">Persona seleccionada: <b>'+esc(nombre)+'</b>. Pulsa <b>«Repasar carpeta de esta persona»</b> para leer y registrar los archivos.</p>';
+  }else if(v==='explorador'){
+    await elegirPersonaExplorador(pid,nombre);
+  }
+  toast('Persona activa: '+nombre);
+}
+/* Abre en una pestaña nueva la carpeta de Drive de la persona indicada (o de la
+   persona activa, si no se pasa ninguna): DOCUMENTOS/<ID>/. Se usa desde la
+   barra fija, desde Analizar documentos y desde Explorador. */
+async function abrirCarpetaPersonaDrive(pid,nombre){
+  var id=pid,nom=nombre;
+  if(!id){if(!PERSONA_DEFECTO||!PERSONA_DEFECTO.id){toast('Elige primero una persona.',true);return;}id=PERSONA_DEFECTO.id;nom=PERSONA_DEFECTO.nombre;}
+  try{
+    var carpeta=await carpetaDocumentosPersona(id,nom);
+    window.open('https://drive.google.com/drive/folders/'+encodeURIComponent(carpeta.id),'_blank');
+  }catch(err){
+    toast('No se pudo abrir la carpeta en Drive. '+mensajeErrorHumano(err.message),true);
+  }
 }
 function buscarPersonaParaDefecto(q){
   var cont=document.getElementById('resultadoBusquedaPersonaDefecto');
@@ -2661,8 +2830,9 @@ EXPLORADOR_PERSONA_ACTUAL={id:pid,nombre:nombre};
 EXPLORADOR_SELECCION=[];
 document.getElementById('inputPersonaExplorador').value=nombre;
 document.getElementById('resultadoBusquedaPersonaExplorador').innerHTML='';
-document.getElementById('resultadoExploradorDetalle').style.display='none';
+cerrarVisorExplorador();document.getElementById('resultadoExploradorDetalle').style.display='none';
 establecerPersonaDefecto(pid,nombre);
+var cardCat=document.getElementById('cardCatalogoExplorador');if(cardCat)cardCat.style.display='block';
 var lista=document.getElementById('resultadoExploradorLista');
 lista.innerHTML='<p><span class="spinner"></span> Leyendo la carpeta de '+esc(nombre)+' en Drive…</p>';
 try{
@@ -2882,9 +3052,34 @@ var u=['B','KB','MB','GB'],i=0;
 while(n>=1024&&i<u.length-1){n/=1024;i++;}
 return n.toFixed(i?1:0)+' '+u[i];
 }
+/* ===== VISOR INLINE (imágenes y PDF) EN EXPLORADOR =====
+   Descarga el archivo original de Drive (no un enlace externo: así funciona
+   igual si el archivo no es público) y lo muestra dentro de la propia
+   pantalla, sin tener que salir a Drive. Solo para 'imagen' y 'pdf' — el
+   resto de tipos siguen usando el enlace "Abrir archivo original en Drive". */
+var EXPLORADOR_VISOR_URL=null;
+function cerrarVisorExplorador(){if(EXPLORADOR_VISOR_URL){URL.revokeObjectURL(EXPLORADOR_VISOR_URL);EXPLORADOR_VISOR_URL=null;}}
+function cerrarDetalleExplorador(){cerrarVisorExplorador();var det=document.getElementById('resultadoExploradorDetalle');if(det)det.style.display='none';}
+function cargarVisorExplorador(idx){
+var el=EXPLORADOR_ARCHIVOS[idx];
+var cont=document.getElementById('visorExploradorArchivo');
+if(!el||!cont||!el.driveFileId||(el.tipo!=='imagen'&&el.tipo!=='pdf')){if(cont)cont.innerHTML='';return;}
+cont.innerHTML='<p style="font-size:12px;color:var(--muted)"><span class="spinner"></span> Cargando visor…</p>';
+descargarArchivoDrive(el.driveFileId).then(function(blob){
+cerrarVisorExplorador();
+var url=URL.createObjectURL(blob);
+EXPLORADOR_VISOR_URL=url;
+if(!document.getElementById('visorExploradorArchivo'))return; // el detalle se cerró mientras cargaba
+if(el.tipo==='imagen')cont.innerHTML='<img src="'+url+'" style="max-width:100%;max-height:70vh;border-radius:10px;border:1px solid var(--border);display:block;margin:0 auto">';
+else cont.innerHTML='<iframe src="'+url+'" title="Vista previa del PDF" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>';
+}).catch(function(err){
+if(document.getElementById('visorExploradorArchivo'))cont.innerHTML='<p style="color:var(--warn);font-size:12px">No se pudo cargar el visor. '+esc(mensajeErrorHumano(err.message))+'</p>';
+});
+}
 function verDetalleExplorador(idx){
 var el=EXPLORADOR_ARCHIVOS[idx];
 if(!el)return;
+cerrarVisorExplorador();
 var det=document.getElementById('resultadoExploradorDetalle');
 var exif=el.exif||{};
 var filas=[];
@@ -2908,7 +3103,8 @@ if(el.googlePhotosTitle)filas.push(['Título (Google Fotos)',esc(el.googlePhotos
 if(el.googlePhotosDescription)filas.push(['Descripción (Google Fotos)',esc(el.googlePhotosDescription)]);
 if(el.personasEtiquetadasGoogle&&el.personasEtiquetadasGoogle.length)filas.push(['Personas etiquetadas (Google)',esc(el.personasEtiquetadasGoogle.join(', '))]);
 filas.push(['OCR',el.ocrProcesado?('sí, confianza '+Number(el.ocrConfianza||0).toFixed(0)+'%'):'pendiente']);
-var html='<div style="display:flex;justify-content:space-between;align-items:center"><h3>'+esc(el.nombreOriginal||'')+'</h3><button class="btn ghost small" onclick="document.getElementById(\'resultadoExploradorDetalle\').style.display=\'none\'">Cerrar</button></div>';
+var html='<div style="display:flex;justify-content:space-between;align-items:center"><h3>'+esc(el.nombreOriginal||'')+'</h3><button class="btn ghost small" onclick="cerrarDetalleExplorador()">Cerrar</button></div>';
+if(el.driveFileId&&(el.tipo==='imagen'||el.tipo==='pdf'))html+='<div id="visorExploradorArchivo" style="margin-top:10px"></div>';
 html+='<table style="margin-top:8px">'+filas.map(function(f){return '<tr><th style="width:170px">'+f[0]+'</th><td>'+f[1]+'</td></tr>';}).join('')+'</table>';
 if((el.ocrSugerencias&&el.ocrSugerencias.informativas&&el.ocrSugerencias.informativas.length)){
 html+='<div class="note" style="margin-top:10px"><b>💡 Pistas encontradas por el OCR</b><br>'+el.ocrSugerencias.informativas.map(function(t){return esc(t);}).join('<br>')+'</div>';
@@ -2932,6 +3128,7 @@ html+='<div class="card" style="margin-top:12px;border-color:#b3261e"><h3 style=
 det.innerHTML=html;
 det.style.display='block';
 det.scrollIntoView({behavior:'smooth',block:'start'});
+cargarVisorExplorador(idx);
 }
 function buscarPersonaParaMoverExplorador(q,idx){
 var cont=document.getElementById('resultadoBusquedaPersonaMoverExplorador_'+idx);
@@ -2959,7 +3156,7 @@ try{
   var carpeta=await carpetaDocumentosPersona(origenId,origenNombre);
   EXPLORADOR_ARCHIVOS=await listarSidecarsDeCarpeta(carpeta.id);
   renderExploradorLista();
-  document.getElementById('resultadoExploradorDetalle').style.display='none';
+  cerrarVisorExplorador();document.getElementById('resultadoExploradorDetalle').style.display='none';
 }catch(err){
   if(estado)estado.innerHTML='<span style="color:var(--warn)">No se pudo mover: '+esc(mensajeErrorHumano(err.message))+'</span>';
 }
@@ -3180,6 +3377,7 @@ await actualizarResumenOCRPendiente();
 var sidecarsFinal=actualizados?await listarSidecarsDeCarpeta(carpeta.id):sidecarsYaLeidos;
 REPASO_CLASIFICADOS=sidecarsFinal.filter(function(s){return s.esDocumento!==true;});
 renderRepasoCarpeta();
+registrarPersonaAnalizada(pid,nombre);
 toast('Repaso terminado: '+actualizados+' archivo(s) registrado(s). Ahora puedes marcar manualmente los documentos.');
 }catch(err){
 var msgH=mensajeErrorHumano(err.message);
@@ -3747,8 +3945,8 @@ setTimeout(function(){location.reload();},700);
    a los dos botones que antes existían por separado ("Generar catálogo" y
    "Guardar JSON"): ahora es uno solo. */
 async function generarCatalogoElegidaRepaso(){
-  if(!REPASO_PERSONA_ACTUAL||!REPASO_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar el catálogo',true);return;}
-  var id=REPASO_PERSONA_ACTUAL.id,nombre=REPASO_PERSONA_ACTUAL.nombre;
+  if(!EXPLORADOR_PERSONA_ACTUAL||!EXPLORADOR_PERSONA_ACTUAL.id){toast('Elige primero a qué persona quieres generar el catálogo',true);return;}
+  var id=EXPLORADOR_PERSONA_ACTUAL.id,nombre=EXPLORADOR_PERSONA_ACTUAL.nombre;
   var out=document.getElementById('resultadoInforme');
   try{
     var carpeta=await carpetaDocumentosPersona(id,nombre);
@@ -3756,6 +3954,7 @@ async function generarCatalogoElegidaRepaso(){
     var cat=await actualizarCatalogoPersona(id,nombre,carpeta);
     if(out)out.innerHTML='<h3>Catálogo de '+esc(nombre)+' generado</h3><p style="font-size:12px;color:var(--muted)">Guardado en DOCUMENTOS/'+esc(id)+'/'+esc(nombreCatalogoPersona(id))+'. '+cat.entradas.length+' entrada(s).</p>';
     toast('✓ Catálogo de '+nombre+' generado y guardado en Drive.');
+    registrarPersonaAnalizada(id,nombre);
     try{
       var locales=await cAll('elementos');
       var deEsta=locales.filter(function(e){return e && String(e.personaAsignadaId)===String(id);});
