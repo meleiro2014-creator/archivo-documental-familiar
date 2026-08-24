@@ -371,7 +371,6 @@ function reiniciarBotonSaltoOCR(){
   OCR_SALTO_PENDIENTE=false;OCR_SALTO_RESOLVER=null;
   var btn=document.getElementById('pgSkipBtn');
   if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-forward-step"></i> Saltar este documento y seguir con el siguiente';}
-  reiniciarBotonCancelarOCR();
 }
 /* ===== Cancelar TODO el lote de OCR (no solo el documento actual) =====
    Igual que OCR_SALTO_RESOLVER, pero en vez de pasar al siguiente documento,
@@ -422,6 +421,7 @@ function ocultarProgresoGlobal(){
   var box=document.getElementById('progresoGlobalBox');if(box)box.style.display='none';
   PG={inicio:0,total:0,hechos:0,archivo:'',etapa:'',visible:false};
   reiniciarBotonSaltoOCR();
+  reiniciarBotonCancelarOCR();
 }
 /* Solo cambia la línea de detalle (pgSub) y, si se indica, la etapa del
    título — nunca el % ni el "X de Y", que siguen midiendo documentos
@@ -2559,6 +2559,10 @@ async function obtenerMiniaturaDesdeDrive(fileId){
       var b=await descargarArchivoDrive(fileId);
       return await generarMiniatura(b,'imagen');
     }
+    if(meta.mimeType==='application/pdf'){
+      var bPdf=await descargarArchivoDrive(fileId);
+      return await generarMiniatura(bPdf,'pdf');
+    }
   }catch(e){console.warn('No se pudo recuperar miniatura de '+fileId,e.message);}
   return null;
 }
@@ -2617,7 +2621,7 @@ async function analizarOCRPendiente(){
   if(!CFG_OCR_ACTIVO){toast('El interruptor de OCR está desactivado en Configuración. Actívalo para poder ejecutarlo.',true);return;}
   if(!confirm('Se ejecutará el OCR de '+lista.length+' documento(s) marcado(s) como tal por ti. ¿Continuar?'))return;
   PG.inicio=Date.now();
-  OCR_CANCELAR_PENDIENTE=false;OCR_CANCELAR_RESOLVER=null;
+  reiniciarBotonCancelarOCR();
   var hechos=0,saltados=0,cancelado=false;
   for(var i=0;i<lista.length;i++){
     var el=lista[i];
