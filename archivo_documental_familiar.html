@@ -2779,6 +2779,45 @@ try{
     fuentes.push({paginaInicial:inicioPag,paginas:paginas-inicioPag+1,archivo:JSON.parse(JSON.stringify(src))});
   }
   if(!pdfDoc.getPageCount())throw new Error('No se pudo crear ninguna página.');
+
+  /* ===== Metadatos agregados de las fuentes (para no perder nada al fusionar) =====
+     copyPages() SOLO copia el contenido visual de las páginas: pdf-lib nunca hereda
+     el diccionario Info (Título/Autor/Fechas) de los PDF de origen, y un PDFDocument.create()
+     nuevo se guarda con las fechas del momento de la fusión si no se fijan a mano.
+     Aquí se calculan de forma explícita a partir de TODOS los archivos seleccionados. */
+  var fechaMasAntigua=null,fechaMasReciente=null,fechasInvalidas=0;
+  seleccion.forEach(function(x){
+    var d=x&&x.fecha?new Date(x.fecha):null;
+    if(!d||isNaN(d.getTime())){fechasInvalidas++;return;}
+    if(!fechaMasAntigua||d<fechaMasAntigua)fechaMasAntigua=d;
+    if(!fechaMasReciente||d>fechaMasReciente)fechaMasReciente=d;
+  });
+  var ahora=new Date();
+  // Unión sin duplicados de etiquetas, personas y personas etiquetadas por Google, de todas las fuentes.
+  var etiquetasUnidas=Array.from(new Set([].concat.apply([],seleccion.map(function(x){return Array.isArray(x.etiquetas)?x.etiquetas:[];}))));
+  var personasUnidas=Array.from(new Set([pnombre].concat([].concat.apply([],seleccion.map(function(x){return Array.isArray(x.personas)?x.personas:[];})))));
+  var personasGoogleUnidas=Array.from(new Set([].concat.apply([],seleccion.map(function(x){return Array.isArray(x.personasEtiquetadasGoogle)?x.personasEtiquetadasGoogle:[];}))));
+  var albumesUnidos=Array.from(new Set([].concat.apply([],seleccion.map(function(x){return Array.isArray(x.albumesOrigen)?x.albumesOrigen:[];}))));
+  // Textos de Google Fotos y EXIF de cada fuente: se guardan por archivo para no perder ninguno
+  // (a diferencia de un único campo de texto, que solo podría contener el de uno de ellos).
+  var googleTitulosOrigen=seleccion.filter(function(x){return x.googlePhotosTitle;}).map(function(x){return {archivo:x.nombreOriginal,titulo:x.googlePhotosTitle};});
+  var googleDescripcionesOrigen=seleccion.filter(function(x){return x.googlePhotosDescription;}).map(function(x){return {archivo:x.nombreOriginal,descripcion:x.googlePhotosDescription};});
+  var exifOrigen=seleccion.filter(function(x){return x.exif&&Object.keys(x.exif).length;}).map(function(x){return {archivo:x.nombreOriginal,exif:x.exif};});
+  var fechasOrigen=seleccion.map(function(x){return {archivo:x.nombreOriginal,fecha:x.fecha||null,fechaEstimada:!!x.fechaEstimada,fuenteFecha:x.fuenteFecha||null};});
+
+  // Metadatos reales incrustados en el propio PDF (diccionario Info), no solo en el sidecar.
+  pdfDoc.setTitle(nombre);
+  pdfDoc.setSubject('Documento compuesto a partir de '+seleccion.length+' archivo(s) del archivo documental familiar de '+pnombre+'.');
+  if(etiquetasUnidas.length)pdfDoc.setKeywords(etiquetasUnidas);
+  pdfDoc.setAuthor(pnombre);
+  pdfDoc.setCreator('Archivo documental familiar');
+  pdfDoc.setProducer('Archivo documental familiar');
+  // Fecha de creación = la más antigua real entre los originales (si se conoce alguna);
+  // si ninguna fuente tenía fecha fiable, se usa el momento de la fusión como último recurso.
+  pdfDoc.setCreationDate(fechaMasAntigua||ahora);
+  // Fecha de modificación = el momento real de esta fusión (es un documento nuevo).
+  pdfDoc.setModificationDate(ahora);
+
   var pdfBytes=await pdfDoc.save({useObjectStreams:false});
   var pdfBlob=new Blob([pdfBytes],{type:'application/pdf'});
   var subida=await subirBinarioADrive(nombreSalidaPDF,pdfBlob,'application/pdf',carpeta.id,'Documento compuesto creado por el Archivo documental familiar a partir de '+seleccion.length+' archivo(s). Conserva la procedencia y los JSON originales en su sidecar.');
@@ -2791,10 +2830,19 @@ try{
   });
   var nuevo={
     nombreOriginal:nombre+'.pdf',nombreArchivo:nombre+'.pdf',tipo:'pdf',estado:'documento',esDocumento:true,
-    driveFileId:subida.id,rutaDrive:'DOCUMENTOS/'+pid+'/'+nombre+'.pdf',fecha:new Date().toISOString(),fechaEstimada:false,fuenteFecha:'composicion',
-    personaAsignadaId:String(pid),personaAsignadaNombre:pnombre,personas:[pnombre],etiquetas:[],albumesOrigen:[],
-    googlePhotosMetadata:null,googlePhotosDescription:'',googlePhotosTitle:'',personasEtiquetadasGoogle:[],
-    exif:{},dimensiones:null,archivoDrive:{tamano:Number(subida.size||pdfBlob.size||0),mimeType:'application/pdf',md5Checksum:subida.md5Checksum||null,creadoDrive:new Date().toISOString()},
+    driveFileId:subida.id,rutaDrive:'DOCUMENTOS/'+pid+'/'+nombre+'.pdf',fecha:ahora.toISOString(),fechaEstimada:false,fuenteFecha:'composicion',
+    // Rango real de fechas de los documentos originales (nada se pierde aunque "fecha" sea la de la fusión).
+    fechaOriginalMinima:fechaMasAntigua?fechaMasAntigua.toISOString():null,
+    fechaOriginalMaxima:fechaMasReciente?fechaMasReciente.toISOString():null,
+    fechasSinDeterminar:fechasInvalidas,
+    fechasOrigen:fechasOrigen,
+    personaAsignadaId:String(pid),personaAsignadaNombre:pnombre,personas:personasUnidas,etiquetas:etiquetasUnidas,albumesOrigen:albumesUnidos,
+    // Metadatos de Google Fotos y EXIF de todas las fuentes, indexados por archivo de origen
+    // (antes se perdían al no copiarse aquí y borrarse después los sidecars originales).
+    googlePhotosMetadata:null,googlePhotosDescription:'',googlePhotosTitle:'',personasEtiquetadasGoogle:personasGoogleUnidas,
+    googlePhotosTitulosOrigen:googleTitulosOrigen,googlePhotosDescripcionesOrigen:googleDescripcionesOrigen,
+    exif:{},exifOrigen:exifOrigen,dimensiones:null,
+    archivoDrive:{tamano:Number(subida.size||pdfBlob.size||0),mimeType:'application/pdf',md5Checksum:subida.md5Checksum||null,creadoDrive:ahora.toISOString()},
     ocrPendiente:false,ocrProcesado:ocrPaginas.length>0,ocrTexto:ocrTotal.join('\n\n--- PÁGINA/ORIGEN SIGUIENTE ---\n\n').slice(0,12000),
     ocrConfianza:ocrPaginas.length?Math.max.apply(null,ocrPaginas.map(function(x){return Number(x.confianza||0);})):0,
     ocrSugerencias:ocrTotal.join('\n').trim().length>=20?analizarTextoGenealogico(ocrTotal.join('\n'),pnombre):{campos:[],informativas:[]},
@@ -2843,6 +2891,10 @@ var filas=[];
 filas.push(['Nombre',esc(el.nombreOriginal||'')]);
 filas.push(['Tipo',esc(el.tipo||'')+(el.esDocumento?' (marcado como documento)':' (marcado como fotografía)')]);
 filas.push(['Fecha',esc((el.fecha||'').toString().slice(0,10))+(el.fechaEstimada?' (estimada)':'')+(el.fuenteFecha?' · fuente: '+esc(el.fuenteFecha):'')]);
+if(el.documentoCompuesto&&(el.fechaOriginalMinima||el.fechaOriginalMaxima)){
+var rango=(el.fechaOriginalMinima?esc(String(el.fechaOriginalMinima).slice(0,10)):'?')+' — '+(el.fechaOriginalMaxima?esc(String(el.fechaOriginalMaxima).slice(0,10)):'?');
+filas.push(['Rango fechas originales',rango+(el.fechasSinDeterminar?' · '+el.fechasSinDeterminar+' archivo(s) sin fecha fiable':'')]);
+}
 if(el.dimensiones&&el.dimensiones.ancho)filas.push(['Dimensiones',el.dimensiones.ancho+' × '+el.dimensiones.alto+' px']);
 if(el.archivoDrive){
 filas.push(['Tamaño',_fmtBytes(el.archivoDrive.tamano)]);
