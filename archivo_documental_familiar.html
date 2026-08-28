@@ -144,6 +144,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 </header>
 <div id="barraPersonaGlobal">
 <div class="bpg-actual" id="bpgActual"><i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna persona elegida todavía</span></div>
+<button class="btn ghost small" id="bpgCopiar" onclick="copiarPersonaActivaPortapapeles()" style="display:none" title="Copiar el nombre y el ID de la persona activa al portapapeles"><i class="fa-regular fa-copy"></i></button>
 <div class="bpg-cambiar">
 <input id="bpgInput" placeholder="Cambiar de persona…" oninput="buscarPersonaBarraGlobal(this.value)" autocomplete="off">
 <div class="bpg-resultados" id="bpgResultados"></div>
@@ -157,6 +158,7 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div class="view active" id="vPanel">
 <div class="hero"><h1>Panel de importación</h1><p>Punto de partida. Aquí ves de un vistazo qué cajas (álbumes de Google Fotos) hay detectadas, en qué estado está cada una, y cuánto llevas ya copiado a Drive. No hace falta hacer nada aquí salvo pulsar «Actualizar» de vez en cuando; el trabajo de verdad se hace en las pestañas Cajas y Analizar documentos.</p>
 <div style="text-align:center;margin-top:8px"><span class="drive-status" id="driveStatusPill" onclick="accionConectar()"><span class="dot" id="driveDot"></span><span id="driveTxt">Comprobando Google Drive...</span></span></div>
+<div style="text-align:center;margin-top:10px"><button class="btn ghost small" onclick="abrirCarpetaOrigenDrive()" title="Abrir en Google Drive la carpeta de origen donde llegan los ZIP de Google Fotos"><i class="fa-brands fa-google-drive"></i> Abrir carpeta de origen (FOTOS-CARLOS)</button></div>
 </div>
 <div class="card" id="cardPersonaDefecto" style="border-color:var(--accent)">
 <h3 style="margin:0"><i class="fa-solid fa-user-check" style="color:var(--accent)"></i> Persona con la que estás trabajando</h3>
@@ -164,6 +166,10 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <div id="personaDefectoActual" style="font-size:13px;margin-bottom:8px"><i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna elegida todavía</span></div>
 <div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Cambiar persona por defecto</span><input id="inputPersonaDefecto" placeholder="Escribe el nombre..." oninput="buscarPersonaParaDefecto(this.value)" autocomplete="off"></div></div>
 <div id="resultadoBusquedaPersonaDefecto" style="font-size:11px"></div>
+<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+<button class="btn ghost small" onclick="prepararCarpetaPersona(PERSONA_DEFECTO&&PERSONA_DEFECTO.id,PERSONA_DEFECTO&&PERSONA_DEFECTO.nombre)" title="Mueve todo lo que hay ahora en la carpeta de esta persona a una subcarpeta ANTERIOR, dejando la raíz vacía para los documentos nuevos"><i class="fa-solid fa-folder-plus"></i> Preparar carpeta antes de añadir documentos nuevos</button>
+<p style="font-size:11px;color:var(--muted);margin-top:6px">Úsalo antes de pegar documentos nuevos en Drive o de procesar una caja: mueve lo que ya había a una subcarpeta "ANTERIOR" para no mezclarlo con lo nuevo. Luego compara ambas en <b>Analizar documentos</b>.</p>
+</div>
 </div>
 <div class="card" id="cardPrimerosPasos" style="border-color:var(--accent)">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
@@ -221,6 +227,12 @@ td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
 <!-- ===== ANALIZAR DOCUMENTOS (fusiona lo que antes era "Dudas" + "Analizar") ===== -->
 <div class="view" id="vAnalizar">
 <div class="hero"><h1>Analizar documentos</h1><p>Todo el trabajo persona a persona vive aquí: eliges una ficha y pulsas "Repasar carpeta" para que el programa mire, directamente en Drive, la carpeta DOCUMENTOS/&lt;ID&gt; de esa persona. Lo que todavía no tenga su ficha (sidecar) se registra automáticamente — como fotografía si es una imagen o vídeo, como documento si es un PDF u otro formato. Después puedes corregir alguna clasificación y lanzar el OCR de los documentos; el catálogo se genera al final, desde Explorador.</p></div>
+<div class="card" id="cardCompararCarpetas">
+<h3>0. Comparar con lo archivado (ANTERIOR)</h3>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Solo hace falta si antes usaste «Preparar carpeta antes de añadir documentos nuevos» en el Panel. Enfrenta la raíz de la persona (lo nuevo) con la subcarpeta ANTERIOR (lo archivado) para descartar repetidos antes de mezclarlo todo. Trabaja sobre la persona activa de la barra de arriba.</p>
+<button class="btn ghost" onclick="compararCarpetasPersona(PERSONA_DEFECTO&&PERSONA_DEFECTO.id,PERSONA_DEFECTO&&PERSONA_DEFECTO.nombre)"><i class="fa-solid fa-clone"></i> Comparar carpetas de esta persona</button>
+<div id="resultadoCompararCarpetas" style="margin-top:12px"><p style="color:var(--muted);font-size:12px">Todavía no se ha comparado ninguna carpeta.</p></div>
+</div>
 <div class="card"><h3>1. Elegir persona</h3>
 <div class="ef-row"><div class="ef-field" style="max-width:320px"><span class="ef-label">Elegir persona a analizar</span><input id="inputPersonaRepaso" placeholder="Escribe el nombre..." oninput="buscarPersonaParaRepaso(this.value)" autocomplete="off"></div></div>
 <div id="resultadoBusquedaPersonaRepaso" style="font-size:11px;margin-bottom:8px"></div>
@@ -1534,6 +1546,118 @@ async function carpetaRaizFOTO(){if(!CFG_FOTO_ID)CFG_FOTO_ID=await obtenerOCrear
 async function carpetaRaizDOCUMENTOS(){if(!CFG_DOCUMENTOS_ID)CFG_DOCUMENTOS_ID=await obtenerOCrearCarpeta('DOCUMENTOS',CFG_DESTINO_ID);return CFG_DOCUMENTOS_ID;}
 async function carpetaFotoPersona(personaId,personaNombre){var raiz=await carpetaRaizFOTO();return{id:raiz,ruta:'FOTO/'+personaId+'.jpg ('+personaNombre+')'};}
 async function carpetaDocumentosPersona(personaId,personaNombre){var raizDocs=await carpetaRaizDOCUMENTOS();var carpetaId=await obtenerOCrearCarpeta(String(personaId),raizDocs);return{id:carpetaId,ruta:'DOCUMENTOS/'+personaId+'/ ('+personaNombre+')'};}
+/* ===== "PREPARAR CARPETA" / COMPARACIÓN CON ANTERIOR =====
+   Antes de volcar documentos nuevos en DOCUMENTOS/<ID>/ de una persona, se
+   puede mover todo lo que ya hay allí a una subcarpeta fija llamada
+   "ANTERIOR", dejando la raíz vacía y lista para recibir lo nuevo (desde la
+   caja o pegado a mano en Drive). Después, antes de "Analizar documentos",
+   una pantalla de comparación enfrenta la raíz (lo nuevo) con ANTERIOR (lo
+   archivado) para descartar repetidos y devolver a la raíz lo que no lo sea. */
+var NOMBRE_CARPETA_ANTERIOR='ANTERIOR';
+async function carpetaAnteriorPersona(personaId,personaNombre){
+  var raiz=await carpetaDocumentosPersona(personaId,personaNombre);
+  var carpetaId=await obtenerOCrearCarpeta(NOMBRE_CARPETA_ANTERIOR,raiz.id);
+  return{id:carpetaId,raizId:raiz.id,ruta:'DOCUMENTOS/'+personaId+'/'+NOMBRE_CARPETA_ANTERIOR};
+}
+/* Lista, sin bajar a subcarpetas, los archivos (no carpetas) que cuelgan
+   directamente de parentId. */
+async function listarArchivosDirectosCarpeta(parentId){
+  var q="'"+parentId+"' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'";
+  return await listarTodosArchivosDrive(q,'id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink');
+}
+/* Envía un archivo a la papelera de Drive (reversible: se puede vaciar la
+   papelera manualmente más tarde). A propósito NO se usa borrado definitivo. */
+async function papeleraArchivoDrive(fileId){
+  return await actualizarMetadatosDrive(fileId,{trashed:true});
+}
+/* Mueve a ANTERIOR todo lo que hay actualmente en la raíz DOCUMENTOS/<ID> de
+   una persona (excepto la propia carpeta ANTERIOR), dejando la raíz vacía
+   para recibir documentos nuevos. Pide confirmación antes de mover nada. */
+async function prepararCarpetaPersona(pid,nombre){
+  if(!pid){toast('Elige primero una persona.',true);return;}
+  try{
+    var anterior=await carpetaAnteriorPersona(pid,nombre);
+    var archivos=await listarArchivosDirectosCarpeta(anterior.raizId);
+    if(!archivos.length){toast('La carpeta de '+nombre+' ya está vacía (o todo está ya en ANTERIOR). Nada que mover.');return;}
+    if(!confirm('Se van a mover '+archivos.length+' archivo(s) de la carpeta de «'+nombre+'» a una subcarpeta "ANTERIOR", dejando la raíz vacía para los documentos nuevos.\n\n¿Continuar?'))return;
+    var ok=0,fallos=0;
+    for(var i=0;i<archivos.length;i++){
+      try{await moverArchivoDrive(archivos[i].id,anterior.id,anterior.raizId);ok++;}
+      catch(e){fallos++;console.warn('No se pudo mover '+archivos[i].name+':',e.message);}
+    }
+    toast('Carpeta preparada: '+ok+' archivo(s) movidos a ANTERIOR.'+(fallos?' ('+fallos+' con error)':''),fallos>0);
+  }catch(err){
+    toast('No se pudo preparar la carpeta. '+mensajeErrorHumano(err.message),true);
+  }
+}
+/* Carga y renderiza la pantalla de comparación (raíz vs ANTERIOR) de la
+   persona indicada, con miniaturas y acciones para papelera / mover. */
+var COMPARAR_PERSONA_ACTUAL=null;
+async function compararCarpetasPersona(pid,nombre){
+  if(!pid){toast('Elige primero una persona.',true);return;}
+  COMPARAR_PERSONA_ACTUAL={id:pid,nombre:nombre};
+  var cont=document.getElementById('resultadoCompararCarpetas');
+  if(!cont)return;
+  cont.innerHTML='<p style="color:var(--muted);font-size:12px"><i class="fa-solid fa-spinner fa-spin"></i> Leyendo ambas carpetas de Drive...</p>';
+  try{
+    var anterior=await carpetaAnteriorPersona(pid,nombre);
+    var raizArchivos=await listarArchivosDirectosCarpeta(anterior.raizId);
+    var anteriorArchivos=await listarArchivosDirectosCarpeta(anterior.id);
+    renderComparacionCarpetas(raizArchivos,anteriorArchivos,anterior);
+  }catch(err){
+    cont.innerHTML='<p style="color:var(--warn);font-size:12px">No se pudo leer las carpetas. '+esc(mensajeErrorHumano(err.message))+'</p>';
+  }
+}
+function renderComparacionCarpetas(raizArchivos,anteriorArchivos,anterior){
+  var cont=document.getElementById('resultadoCompararCarpetas');
+  if(!cont)return;
+  function columna(titulo,archivos,origenId,esAnterior){
+    if(!archivos.length)return '<div style="flex:1;min-width:220px"><h4 style="margin:0 0 8px">'+titulo+' <span style="color:var(--muted);font-weight:400">(0)</span></h4><p style="color:var(--muted);font-size:12px">Vacía.</p></div>';
+    var html='<div style="flex:1;min-width:220px"><h4 style="margin:0 0 8px">'+titulo+' <span style="color:var(--muted);font-weight:400">('+archivos.length+')</span></h4><div style="display:flex;flex-direction:column;gap:8px">';
+    html+=archivos.map(function(a){
+      var fecha=a.createdTime?new Date(a.createdTime).toLocaleDateString('es-ES'):'';
+      var tam=a.size?Math.round(a.size/1024)+' KB':'';
+      return '<div class="card" style="margin:0;padding:8px;display:flex;gap:8px;align-items:center" id="cmpItem_'+esc(a.id)+'">'+
+        '<img id="cmpThumb_'+esc(a.id)+'" style="width:52px;height:52px;object-fit:cover;border-radius:6px;background:var(--bg,#faf6f0);flex:none" alt="">'+
+        '<div style="flex:1;min-width:0;overflow:hidden"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(a.name)+'">'+esc(a.name)+'</div>'+
+        '<div style="font-size:10px;color:var(--muted)">'+esc(fecha)+(tam?' · '+tam:'')+'</div></div>'+
+        '<div style="display:flex;flex-direction:column;gap:4px;flex:none">'+
+        (esAnterior?'<button type="button" class="btn ghost small" title="Mover a la raíz (no es repetida)" onclick="comparacionMoverARaiz(\''+esc(a.id)+'\',\''+esc(anterior.raizId)+'\',\''+esc(anterior.id)+'\')"><i class="fa-solid fa-arrow-left"></i></button>':'')+
+        '<button type="button" class="btn ghost small" title="Enviar a la papelera de Drive (es repetida)" onclick="comparacionPapelera(\''+esc(a.id)+'\')"><i class="fa-solid fa-trash"></i></button>'+
+        '</div></div>';
+    }).join('');
+    html+='</div></div>';
+    return html;
+  }
+  var html='<div style="display:flex;gap:16px;flex-wrap:wrap">'+
+    columna('Raíz (nuevo)',raizArchivos,anterior.raizId,false)+
+    columna('ANTERIOR (archivado)',anteriorArchivos,anterior.id,true)+
+    '</div>';
+  cont.innerHTML=html;
+  raizArchivos.concat(anteriorArchivos).forEach(function(a){
+    obtenerMiniaturaDesdeDrive(a.id).then(function(url){
+      var img=document.getElementById('cmpThumb_'+a.id);
+      if(img&&url)img.src=url;
+      else if(img)img.outerHTML='<div style="width:52px;height:52px;border-radius:6px;background:var(--bg,#faf6f0);flex:none;display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-file"></i></div>';
+    }).catch(function(){});
+  });
+}
+async function comparacionPapelera(fileId){
+  try{
+    await papeleraArchivoDrive(fileId);
+    var el=document.getElementById('cmpItem_'+fileId);
+    if(el)el.remove();
+    toast('Enviado a la papelera de Drive.');
+  }catch(err){toast('No se pudo enviar a la papelera. '+mensajeErrorHumano(err.message),true);}
+}
+async function comparacionMoverARaiz(fileId,raizId,anteriorId){
+  try{
+    await moverArchivoDrive(fileId,raizId,anteriorId);
+    var el=document.getElementById('cmpItem_'+fileId);
+    if(el)el.remove();
+    toast('Movido a la raíz.');
+  }catch(err){toast('No se pudo mover a la raíz. '+mensajeErrorHumano(err.message),true);}
+}
 /* ===== REGISTRO DE PERSONAS ANALIZADAS =====
    Lista, guardada en Drive junto a DOCUMENTOS/ (personas_analizadas.json), de
    qué personas se han repasado ya al menos una vez ("Repasar carpeta" en
@@ -2707,6 +2831,21 @@ function renderBarraPersonaGlobal(){
     '<i class="fa-solid fa-circle-user" style="color:var(--muted)"></i> <span style="color:var(--muted)">Ninguna persona elegida todavía</span>';
   var btnCarpeta=document.getElementById('bpgAbrirCarpeta');
   if(btnCarpeta)btnCarpeta.style.display=(PERSONA_DEFECTO&&PERSONA_DEFECTO.id)?'inline-flex':'none';
+  var btnCopiar=document.getElementById('bpgCopiar');
+  if(btnCopiar)btnCopiar.style.display=(PERSONA_DEFECTO&&PERSONA_DEFECTO.id)?'inline-flex':'none';
+}
+/* Copia "Nombre (ID X)" de la persona activa al portapapeles, para pegarlo
+   donde haga falta (buscadores, mensajes...). Usa la persona de la barra
+   fija (PERSONA_DEFECTO), la misma en todas las pantallas. */
+async function copiarPersonaActivaPortapapeles(){
+  if(!PERSONA_DEFECTO||!PERSONA_DEFECTO.id){toast('Elige primero una persona.',true);return;}
+  var texto=PERSONA_DEFECTO.nombre+' (ID '+PERSONA_DEFECTO.id+')';
+  try{
+    await navigator.clipboard.writeText(texto);
+    toast('Copiado: '+texto);
+  }catch(e){
+    toast('No se pudo copiar al portapapeles.',true);
+  }
 }
 function buscarPersonaBarraGlobal(q){
   var cont=document.getElementById('bpgResultados');
@@ -2748,6 +2887,18 @@ async function abrirCarpetaPersonaDrive(pid,nombre){
   }catch(err){
     toast('No se pudo abrir la carpeta en Drive. '+mensajeErrorHumano(err.message),true);
   }
+}
+/* Abre en una pestaña nueva la carpeta de origen (compartida, ej. FOTOS-CARLOS)
+   donde llegan los ZIP de Google Takeout. Es la carpeta configurada en
+   CFG_ORIGEN_ID (Configuración); si todavía no se ha cargado desde el
+   almacenamiento local, espera a que termine de cargar antes de abrirla. */
+async function abrirCarpetaOrigenDrive(){
+  var id=CFG_ORIGEN_ID;
+  if(!id){
+    try{id=await leerCfgValor('origenId',null);}catch(e){}
+  }
+  if(!id){toast('Todavía no hay una carpeta de origen configurada. Ve a Configuración.',true);return;}
+  window.open('https://drive.google.com/drive/folders/'+encodeURIComponent(id),'_blank');
 }
 function buscarPersonaParaDefecto(q){
   var cont=document.getElementById('resultadoBusquedaPersonaDefecto');
